@@ -321,3 +321,11 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
   text-transform: uppercase;
 }
 .oe-link-muted:hover { color: var(--ink); }
+
+/* ─── Error bar (blocked / wrong file type) ────── */
+.oe-error-bar {
+  width: 1200px;
+  height: 4px;
+  background: var(--ink);
+  margin-bottom: 56px;
+}

@@ -16,11 +16,20 @@
 <div x-data="openEditorApp()" x-init="init()">
  
   <div class="oe-frame">
-    <div class="oe-progress">
-      <template x-for="n in 4" :key="n">
-        <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
-      </template>
+    <div class="oe-progress" x-show="currentPhase !== 'blocked'">
+  <template x-for="n in 4" :key="n">
+    <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
+  </template>
+</div>
+<!-- ============ BLOCKED (wrong file type) ============ -->
+<div x-show="currentPhase === 'blocked'" x-cloak>
+    <h2 class="oe-headline">Unsupported file type</h2>
+    <p class="oe-lede">We can only process .docx or .rtf files. Please upload a different file.</p>
+    <div class="oe-submit-row">
+        <button class="oe-btn-primary" @click="resetToUpload()">Upload a different file</button>
     </div>
+    <p class="oe-lede" style="margin-top: 40px;">Nothing was charged.</p>
+</div>
  
     <!-- ============ UPLOAD  ============ -->
     <div x-show="currentPhase === 'upload'" x-cloak>
@@ -223,11 +232,16 @@ function openEditorApp() {
     },
 
     applyFile(file) {
-      // any dropped/selected file is accepted here.
-      // validation of file happens here 
-      if (!file) return;
-      this.selectedFile = file;
-    },
+  if (!file) return;
+  const validExtensions = ['.docx', '.rtf'];
+  const fileName = file.name.toLowerCase();
+  const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+  if (!isValid) {
+    this.currentPhase = 'blocked';
+    return;
+  }
+  this.selectedFile = file;
+},
 
     removeFile() {
       this.selectedFile = null;
