@@ -1,0 +1,205 @@
+.oapa-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+/* ─── Tokens ─────────────────────────────────── */
+:root {
+      --green:      #1a4a3a;
+      --green-mid:  #2d6b54;
+      --green-light:#e8f2ed;
+      --green-dim:  rgba(26,74,58,0.08);
+      --ink:        #1c1c1a;
+      --ink2:       #4a4a46;
+      --ink3:       #8a8a84;
+      --paper:      #faf9f6;
+      --paper2:     #f2f0eb;
+      --paper3:     #e8e5de;
+      --white:      #ffffff;
+      --border:     #dedad2;
+      --border2:    #c8c4bb;
+      --red:        #b5362a;
+      --red-dim:    #fdf0ee;
+      --serif:      'Instrument Serif', Georgia, serif;
+      --mono:       'IBM Plex Mono', 'Courier New', monospace;
+      --sans:       'IBM Plex Sans', system-ui, sans-serif;
+      --shadow:     0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-lg:  0 8px 40px rgba(0,0,0,0.10);
+
+      --oe-pending:#c7c7c7; 
+}
+
+/* ─── Reset ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+/* ─── Updated Body ──────────────────────────── */
+body{
+  background: #e9e9e4;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
+ 
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+ 
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/*OpenEditor frame and components*/
+
+/* Reproduces the Figma canvas at literal 1440x900 so spacing/positions
+   can be checked directly against the design file. */
+.oe-frame {
+  position: relative;
+  width: 1440px;
+  min-height: 900px;
+  margin: 40px auto;
+  background: var(--white);
+  padding: 80px 120px 60px;
+  box-sizing: border-box;
+}
+ 
+/* Progress indicator: y80, full content width, 4 segments */
+.oe-progress { display: flex; gap: 8px; margin-bottom: 56px; }
+.oe-progress-seg { flex: 1; height: 3px; background: var(--oe-pending); }
+.oe-progress-seg.done { background: var(--ink); }
+ 
+.oe-headline {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+}
+ 
+.oe-lede {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink2);
+  max-width: 52ch;
+  margin: 0 0 40px;
+}
+ 
+/* ─── Upload dropzone ──────────────────────────── */
+.oe-dz {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 1200px;
+  height: 280px;
+  border-radius: 2px;
+  cursor: pointer;
+  /* svg background to get a dashed line with [6,5] and radius 2 */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%23C7C7C7' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat;
+}
+.oe-dz.has-file {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%231c1c1a' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat;
+}
+ 
+.oe-dz input[type=file] { display: none; }
+ 
+.oe-dz-main { font-family: var(--serif); font-size: 18px; }
+.oe-dz-browse { text-decoration: underline; text-underline-offset: 2px; }
+ 
+.oe-dz-filename { font-family: var(--mono); font-size: 13px; }
+.oe-dz-remove {
+  margin-left: 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink3);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+ 
+.oe-dz-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink3);
+}
+ 
+.oe-submit-row { margin-top: 32px; text-align: right; width: 1200px; }
+.oe-submit-row.left { text-align: left; }
+ 
+/* OAPA signature block: fixed at (1100,726), 220x54 — uses the real
+   .oapa-logo class above, just positioned for this frame. */
+.oe-signature {
+  position: absolute;
+  left: 1100px;
+  top: 726px;
+  width: 220px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ─── Buttons ──────────────────────────────── */
+.oe-btn-primary {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--ink);
+  color: var(--white);
+  border: none;
+  padding: 12px 24px;
+  cursor: pointer;
+}
+.oe-btn-primary:disabled {
+  background: var(--paper2);
+  color: var(--ink3);
+  cursor: not-allowed;
+}
+.oe-btn-ghost {
+  font-family: var(--sans);
+  font-size: 14px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink3);
+  border-radius: 3px;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.oe-btn-ghost:hover { border-color: var(--ink3); color: var(--ink); }
+
+.oe-file-meta {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink2);
+  margin: 24px 0 40px;
+}
+
+.oe-check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid #C7C7C7;
+  font-family: var(--serif);
+  font-size: 16px;
+}
+.oe-check-row:last-child { border-bottom: none; }
+
+.oe-check-label { flex: 1; }
+
+.oe-check-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink3);
+}
+ 

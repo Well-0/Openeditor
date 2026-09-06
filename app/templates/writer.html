@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenEditor</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script> <!--HTMX-->>
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script> <!--Alpine.js -->>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='updatedstyle.css') }}">
+</head>
+<body>
+
+<div x-data="openEditorApp()" x-init="init()">
+ 
+  <div class="oe-frame">
+    <div class="oe-progress">
+      <template x-for="n in 4" :key="n">
+        <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
+      </template>
+    </div>
+ 
+    <!-- ============ UPLOAD  ============ -->
+    <div x-show="currentPhase === 'upload'" x-cloak>
+      <h2 class="oe-headline">Upload your manuscript</h2>
+      <p class="oe-lede">OpenEditor corrects your document against APA7 and checks every reference against Crossref. Your original file is deleted once you download the result.</p>
+ 
+      <label
+        for="file-input"
+        class="oe-dz"
+        :class="{ 'has-file': selectedFile || isDragOver }"
+        @dragover.prevent="isDragOver = true"
+        @dragleave.prevent="isDragOver = false"
+        @drop.prevent="isDragOver = false; onFileDropped($event)">
+ 
+        <input id="file-input" type="file" accept=".docx" @change="onFileSelected($event)">
+ 
+        <template x-if="!selectedFile">
+          <div class="oe-dz-main">Drop your .docx file here, or <span class="oe-dz-browse">browse</span></div>
+        </template>
+ 
+        <template x-if="selectedFile">
+          <div class="oe-dz-main">
+            <span class="oe-dz-filename" x-text="selectedFile.name"></span>
+            <button type="button" class="oe-dz-remove" @click.prevent.stop="removeFile()">Remove</button>
+          </div>
+        </template>
+ 
+        <div class="oe-dz-pill">.docx only &middot; 20 MB &middot; 15,000 words</div>
+      </label>
+ 
+      <div class="oe-submit-row">
+        <button class="oe-btn-primary" :disabled="!canSubmit" @click="startChecking()">
+          Continue
+        </button>
+      </div>
+    </div>
+ 
+    <!-- ============ CHECKING + PROCESSING ============ -->
+    <div x-show="currentPhase === 'checking'" x-cloak>
+        <div class="oe-eyebrow">STEP 1 OF 4 &middot; CHECKING YOUR FILE</div>
+        <h2 class="oe-headline">Checking your manuscript</h2>
+        <div class="oe-file-meta" x-text="`${selectedFile ? selectedFile.name.toUpperCase() : ''} · ${fileSizeLabel}`"></div>
+
+        <div class="oe-check-list">
+            <template x-for="row in checkRows" :key="row.label">
+                <div class="oe-check-row">
+                    <span class="oe-check-marker" x-text="row.done ? '■' : '□'"></span>
+                    <span class="oe-check-label" x-text="row.label"></span>
+                    <span class="oe-check-status" x-text="row.status"></span>
+                </div>
+            </template>
+    </div>
+    <p class="oe-lede" style="margin-top: 40px;">Nothing is charged until you choose to upgrade.</p>
+    </div>
+ 
+    <!-- ============ H3 · RESULTS / UPGRADE / DOWNLOAD — not yet built ============ -->
+    <div x-show="currentPhase === 'results' || currentPhase === 'upgrade' || currentPhase === 'download'" x-cloak>
+        <h2 class="oe-headline">Results</h2>
+        <p class="oe-lede">Placeholder — 04-results / 05-upgrade / 06-download land in H3.</p>
+        <div class="oe-submit-row left">
+            <button class="oe-btn-ghost" @click="resetToUpload()">Back to upload (temp)</button>
+        </div>
+        </div>
+    
+        <div class="oe-signature">
+        <img class="oapa-logo" src="{{ url_for('static', filename='oapa-logo.png') }}" alt="OAPA">
+        </div>
+    </div>
+    </div>
+ 
+<script>
+function openEditorApp() {
+  return {
+    currentPhase: 'upload',
+    selectedFile: null,
+    isDragOver: false,
+    hasDownloaded: false,
+
+    checkRows: [
+      { label: 'File type', done: false, status: 'PENDING' },
+      { label: 'File size', done: false, status: 'PENDING' },
+      { label: 'Word count', done: false, status: 'WAITING' },
+      { label: 'Document readable', done: false, status: 'WAITING' }
+    ],
+    processingPercent: 0,
+    elapsedSeconds: 0,
+    processingTimer: null,
+    elapsedTimer: null,
+
+    init() {
+      window.onbeforeunload = () => {
+        if ((this.currentPhase === 'results' || this.currentPhase === 'upgrade' || this.currentPhase === 'download') && !this.hasDownloaded) {
+          return 'You have a completed report you have not downloaded yet.';
+        }
+      };
+    },
+
+    onFileSelected(event) {
+      this.applyFile(event.target.files[0]);
+    },
+
+    onFileDropped(event) {
+      const file = event.dataTransfer.files[0];
+      this.applyFile(file);
+      const input = document.getElementById('file-input');
+      if (input && event.dataTransfer.files.length) {
+        input.files = event.dataTransfer.files;
+      }
+    },
+
+    applyFile(file) {
+      // any dropped/selected file is accepted here.
+      // Wrong-file-type / oversized handling is Gurman's error-state track.
+      if (!file) return;
+      this.selectedFile = file;
+    },
+
+    removeFile() {
+      this.selectedFile = null;
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
+    },
+
+    get canSubmit() {
+      return !!this.selectedFile;
+    },
+
+    get elapsedFormatted() {
+      const m = Math.floor(this.elapsedSeconds / 60);
+      const s = this.elapsedSeconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    },
+
+    stepNumber() {
+      if (this.currentPhase === 'upload') return 1;
+      if (this.currentPhase === 'checking' || this.currentPhase === 'processing') return 2;
+      if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
+      return 4;
+    },
+
+    startChecking() {
+      if (!this.canSubmit) return;
+      this.currentPhase = 'checking';
+      this.runChecklist();
+    },
+
+    runChecklist() {
+      // Hardcoded rows + fixed delays — no real validation happening here.
+      this.checkRows = [
+        { label: 'File type', done: false, status: '.DOCX' },
+        { label: 'File size', done: false, status: '4.2 MB OF 20 MB' },
+        { label: 'Word count', done: false, status: 'COUNTING...' },
+        { label: 'Document readable', done: false, status: 'WAITING' }
+      ];
+
+      const delays = [500, 1100, 1700, 2300];
+      delays.forEach((delay, i) => {
+        setTimeout(() => {
+          this.checkRows[i].done = true;
+          if (this.checkRows[i].label === 'Word count') this.checkRows[i].status = 'COUNTED';
+          if (this.checkRows[i].label === 'Document readable') this.checkRows[i].status = 'READABLE';
+          if (i === this.checkRows.length - 1) {
+            setTimeout(() => this.startProcessing(), 400);
+          }
+        }, delay);
+      });
+    },
+
+    startProcessing() {
+      this.currentPhase = 'processing';
+      this.processingPercent = 0;
+      this.elapsedSeconds = 0;
+
+      const totalDurationMs = 300000; // fixed simulated duration — "Stops at 5:00"
+      const stepMs = 100;
+      let elapsedMs = 0;
+
+      this.processingTimer = setInterval(() => {
+        elapsedMs += stepMs;
+        this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
+        if (elapsedMs >= totalDurationMs) {
+          clearInterval(this.processingTimer);
+          clearInterval(this.elapsedTimer);
+          this.currentPhase = 'results';
+        }
+      }, stepMs);
+
+      this.elapsedTimer = setInterval(() => {
+        this.elapsedSeconds++;
+      }, 1000);
+    },
+
+    cancelProcessing() {
+      clearInterval(this.processingTimer);
+      clearInterval(this.elapsedTimer);
+      this.resetToUpload();
+    },
+
+    resetToUpload() {
+      clearInterval(this.processingTimer);
+      clearInterval(this.elapsedTimer);
+      this.selectedFile = null;
+      this.hasDownloaded = false;
+      this.currentPhase = 'upload';
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
+    }
+  };
+}
+
+</script>

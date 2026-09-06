@@ -121,6 +121,7 @@ _PUBLIC_PATH_PREFIXES = (
     "/apispec",
     "/flasgger_static",
     "/static",
+    "/openeditor",
 )
 
 
@@ -435,8 +436,8 @@ def _dedup_sam_issues(sam_issues: list[dict], existing_issues: list[dict]) -> li
 
 
 @app.get("/")
-def index():
-    return render_template("index.html")
+def openeditor():
+    return render_template("writer.html")
 
 
 @app.get("/api/jutlp-articles")
