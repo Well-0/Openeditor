@@ -24,6 +24,7 @@
  
     <!-- ============ UPLOAD  ============ -->
     <div x-show="currentPhase === 'upload'" x-cloak>
+        <div class="oe-eyebrow">STEP 1 OF 4 &middot; UPLOAD</div>
       <h2 class="oe-headline">Upload your manuscript</h2>
       <p class="oe-lede">OpenEditor corrects your document against APA7 and checks every reference against Crossref. Your original file is deleted once you download the result.</p>
  
@@ -48,7 +49,7 @@
           </div>
         </template>
  
-        <div class="oe-dz-pill">.docx only &middot; 20 MB &middot; 15,000 words</div>
+        <div class="oe-dz-pill">.docx only &middot; 20 MB MAXIMUM &middot; 15,000 words MAXIMUM</div>
       </label>
  
       <div class="oe-submit-row">
@@ -58,7 +59,7 @@
       </div>
     </div>
  
-    <!-- ============ CHECKING + PROCESSING ============ -->
+    <!-- ============ CHECKING ============ -->
     <div x-show="currentPhase === 'checking'" x-cloak>
         <div class="oe-eyebrow">STEP 1 OF 4 &middot; CHECKING YOUR FILE</div>
         <h2 class="oe-headline">Checking your manuscript</h2>
@@ -75,21 +76,100 @@
     </div>
     <p class="oe-lede" style="margin-top: 40px;">Nothing is charged until you choose to upgrade.</p>
     </div>
- 
-    <!-- ============ H3 · RESULTS / UPGRADE / DOWNLOAD — not yet built ============ -->
-    <div x-show="currentPhase === 'results' || currentPhase === 'upgrade' || currentPhase === 'download'" x-cloak>
-        <h2 class="oe-headline">Results</h2>
-        <p class="oe-lede">Placeholder — 04-results / 05-upgrade / 06-download land in H3.</p>
+    <!-- ============ PROCESSING ============ -->
+    <div x-show="currentPhase === 'processing'" x-cloak>
+        <div class="oe-eyebrow">STEP 2 OF 4 &middot; PROCESSING</div>
+        <h2 class="oe-headline">Correcting your manuscript</h2>
+        <p class="oe-lede">Still working. Longer manuscripts take a few minutes.</p>
+        <div class="oe-progress-track">
+            <div class="oe-progress-fill" :style="`width: ${processingPercent}%`"></div>
+        </div>
+
+        <div class="oe-timer">ELAPSED <span x-text="elapsedFormatted"></span> &middot; STOPS AUTOMATICALLY AT 5:00</div>
+
         <div class="oe-submit-row left">
-            <button class="oe-btn-ghost" @click="resetToUpload()">Back to upload (temp)</button>
-        </div>
-        </div>
-    
-        <div class="oe-signature">
-        <img class="oapa-logo" src="{{ url_for('static', filename='oapa-logo.png') }}" alt="OAPA">
+            <button class="oe-btn-ghost" @click="cancelProcessing()">Cancel</button>
         </div>
     </div>
+    <!-- ============ RESULTS ============ -->
+    <div x-show="currentPhase === 'results'" x-cloak>
+        <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
+        <h2 class="oe-headline" x-text="`${totalCorrections} corrections applied`"></h2>
+
+        <div class="oe-results-columns">
+            <div class="oe-results-col">
+            <div class="oe-results-col-header">INCLUDED IN YOUR FREE VERSION</div>
+            <template x-for="item in freeItems" :key="item.label">
+                <div class="oe-results-row">
+                <span class="oe-results-marker">■</span>
+                <span class="oe-results-label" x-text="item.label"></span>
+                <span class="oe-results-status" x-text="item.status"></span>
+                </div>
+            </template>
+            </div>
+
+            <div class="oe-results-col muted">
+            <div class="oe-results-col-header">REQUIRES THE FULL VERSION</div>
+            <template x-for="item in lockedItems" :key="item.label">
+                <div class="oe-results-row">
+                <span class="oe-results-marker">□</span>
+                <span class="oe-results-label" x-text="item.label"></span>
+                <span class="oe-results-status" x-text="item.status"></span>
+                </div>
+            </template>
+            <p class="oe-results-aside">Six references could not be verified. The full version tells you which.</p>
+            </div>
+        </div>
+
+        <div class="oe-submit-row left" style="margin-top: 40px;">
+            <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
+            <button class="oe-btn-primary" @click="goToUpgrade()" style="margin-left: 16px;">See the full version</button>
+        </div>
     </div>
+    <!-- ============ UPGRADE ============ -->
+    <div x-show="currentPhase === 'upgrade'" x-cloak>
+        <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
+        <h2 class="oe-headline">Choose your version</h2>
+
+        <div class="oe-upgrade-cards">
+            <div class="oe-upgrade-card">
+            <div class="oe-upgrade-card-label">FREE</div>
+            <h3 class="oe-upgrade-card-price">No charge</h3>
+            <p class="oe-upgrade-card-desc">
+                APA7 formatting corrections.<br>
+                Up to 15,000 words, 20 MB.<br>
+                Reference list left untouched.
+            </p>
+            <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
+            </div>
+
+            <div class="oe-upgrade-card selected">
+            <div class="oe-upgrade-card-label">FULL</div>
+            <h3 class="oe-upgrade-card-price">$12 per manuscript</h3>
+            <p class="oe-upgrade-card-desc">
+                Everything in Free, plus every reference and DOI checked against Crossref, with each problem named.
+            </p>
+            <button class="oe-btn-primary" @click="payAndDownload()">Pay and download</button>
+            </div>
+        </div>
+
+        <p class="oe-upgrade-footnote">One manuscript, one payment. No subscription. Your file is deleted after download.</p>
+    </div>
+
+    <!-- ============ DOWNLOAD ============ -->
+    <div x-show="currentPhase === 'download'" x-cloak>
+        <div class="oe-eyebrow">STEP 4 OF 4 &middot; DOWNLOAD</div>
+        <h2 class="oe-headline">Your manuscript is ready</h2>
+        <div class="oe-file-meta" x-text="downloadFileLabel"></div>
+
+        <p class="oe-lede">This is the only time you can download this file. Once you leave, your upload and the corrected version are both deleted from our servers.</p>
+
+        <div class="oe-submit-row left">
+            <button class="oe-btn-primary" @click="downloadManuscript()">Download manuscript</button>
+        </div>
+        <button class="oe-link-muted" @click="resetToUpload()">Process another file</button>
+    </div>
+</div>
  
 <script>
 function openEditorApp() {
@@ -98,7 +178,18 @@ function openEditorApp() {
     selectedFile: null,
     isDragOver: false,
     hasDownloaded: false,
-
+    totalCorrections: 34,
+    freeItems: [
+    { label: 'Heading hierarchy', status: '12 FIXED' },
+    { label: 'Line spacing and margins', status: '9 FIXED' },
+    { label: 'In-text citation format', status: '8 FIXED' },
+    { label: 'Title page and running head', status: '5 FIXED' }
+    ],
+    lockedItems: [
+    { label: 'Reference list validated', status: '6 FLAGGED' },
+    { label: 'DOIs checked against Crossref', status: 'LOCKED' },
+    { label: 'Broken references reported', status: 'LOCKED' }
+    ],
     checkRows: [
       { label: 'File type', done: false, status: 'PENDING' },
       { label: 'File size', done: false, status: 'PENDING' },
@@ -133,7 +224,7 @@ function openEditorApp() {
 
     applyFile(file) {
       // any dropped/selected file is accepted here.
-      // Wrong-file-type / oversized handling is Gurman's error-state track.
+      // validation of file happens here 
       if (!file) return;
       this.selectedFile = file;
     },
@@ -155,8 +246,8 @@ function openEditorApp() {
     },
 
     stepNumber() {
-      if (this.currentPhase === 'upload') return 1;
-      if (this.currentPhase === 'checking' || this.currentPhase === 'processing') return 2;
+      if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
+      if (this.currentPhase === 'processing') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
@@ -194,7 +285,7 @@ function openEditorApp() {
       this.processingPercent = 0;
       this.elapsedSeconds = 0;
 
-      const totalDurationMs = 300000; // fixed simulated duration — "Stops at 5:00"
+      const totalDurationMs = 5000; // fixed simulated duration — "Stops at 5:00"
       const stepMs = 100;
       let elapsedMs = 0;
 
@@ -227,7 +318,19 @@ function openEditorApp() {
       this.currentPhase = 'upload';
       const input = document.getElementById('file-input');
       if (input) input.value = '';
-    }
+    },
+    goToUpgrade() {
+        this.currentPhase = 'upgrade';
+    },
+    payAndDownload() {
+        // No real payment/file returned per spec — just advances state.
+        this.currentPhase = 'download';
+    },
+
+    downloadManuscript() {
+    // No real file returned per spec — just marks as downloaded.
+    this.hasDownloaded = true;
+    },
   };
 }
 
