@@ -15,7 +15,11 @@
 
 <div x-data="openEditorApp()" x-init="init()">
  
-  <div class="oe-frame">
+  <div class="oe-frame-wrapper">
+<div class="oe-frame">
+    <div class="oe-signature">
+  <img src="{{ url_for('static', filename='oapa-logo.png') }}" class="oapa-logo" alt="OAPA">
+</div>
     <div class="oe-progress" x-show="currentPhase !== 'blocked'">
   <template x-for="n in 4" :key="n">
     <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
@@ -178,6 +182,7 @@
         </div>
         <button class="oe-link-muted" @click="resetToUpload()">Process another file</button>
     </div>
+</div>
 </div>
  
 <script>
@@ -349,3 +354,17 @@ function openEditorApp() {
 }
 
 </script>
+
+
+<script>
+  function updateFrameScale() {
+    const scaleX = window.innerWidth / 1440;
+    const scaleY = window.innerHeight / 900;
+    const scale = Math.min(scaleX, scaleY, 1); // never scale up, only down
+    document.documentElement.style.setProperty('--oe-scale', scale);
+  }
+  window.addEventListener('resize', updateFrameScale);
+  updateFrameScale();
+</script>
+
+
