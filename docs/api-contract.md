@@ -302,3 +302,41 @@ Z-04's toggle proposal should be logged as a future enhancement, not built now.
 
 **Header counts:** `total_notes` (int) is already returned — matches Z-04's "N corrections applied"
 header requirement directly.
+
+
+---
+
+## G-06 — Support/error passthrough
+
+**Goal:** every failure path (upload, poll, download) returns enough info for Humaid's future
+"Report an issue" links to pre-fill an error code and session context, without the user needing
+to describe what happened.
+
+**Current gap:** looking at the actual failure payloads across the three endpoints, they are
+**inconsistent** — some include useful context, most don't:
+
+| Endpoint | Failure | Current payload | Has `session_id`? | Has `filename`? |
+|---|---|---|---|---|
+| `POST /api/upload` | Bad type / empty | `{ "error": "..." }` | ❌ No (session doesn't exist yet at this point) | ❌ No |
+| `POST /api/upload` | Over word limit | `{ "error": "...", "word_count": N, "max_word_count": N }` | ❌ No | ❌ No |
+| `GET /api/results/<id>` | Error / timeout / cancelled | `{ "error": "..." }` or `{ "status": "...", "error": "..." }` | ✅ Yes (it's in the URL) | ❌ No |
+| `GET /api/download/<id>` | Not found | `{ "error": "Session not found" }` | ✅ Yes (URL) | ❌ No |
+
+**Recommended fix:** standardise every failure response to include:
+```json
+{ "error": "...", "error_code": "TOO_LARGE", "session_id": "...", "filename": "..." }
+```
+- `error_code` — one of the G-02 codes (or a new one for pipeline/timeout/cancelled failures).
+- `session_id` — `null` for upload-stage failures (no session exists yet), populated for poll/download failures.
+- `filename` — the original uploaded filename where known, `null` otherwise. **Never the file contents.**
+
+**Passthrough format for "Report an issue" links:** query string on the support page, e.g.:
+
+**Explicitly not sent, ever:** file contents, manuscript text, any extracted document content —
+only the filename string and error metadata. Matches the privacy constraint from Z-07 (no
+manuscript retention/transmission).
+
+**Status:** requires backend changes to add `error_code`/`filename` to error responses that
+don't currently have them — flagging as a small follow-up task, not done in this doc pass.
+
+
