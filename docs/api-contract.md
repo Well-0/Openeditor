@@ -264,3 +264,41 @@ endpoint.
 - **This is a live scraper**, not static data — it fetches real pages from `open-publishing.org` on cache miss (6-hour cache), falling back to one hardcoded article if scraping fails entirely. It always returns at least one article, but could silently degrade to only the fallback if the source site changes structure.
 - Implement as a toggle: `CAROUSEL_ENABLED` env var, default `true`. When `false`, frontend should not call this endpoint or show the carousel at all.
 - Pending Joey's sign-off per Z-03/H-03 note — carousel default (on/off) needs explicit client confirmation before shipping.
+
+
+
+---
+
+## G-04 — Results payload shape
+
+**Endpoint:** same `GET /api/results/<session_id>` used for polling — once `status` isn't
+`"processing"`, this is the final results payload.
+
+**Two Zac states, mapped from the existing payload:**
+
+- **Issues found:** `issues[]` already exists in the payload. Map by `status` field:
+  `status: "fail"` → *needs action* (mirrors "flagged for user review, still needs attention").
+  `status: "warn"` → *auto-fixed / advisory* (lower severity, informational).
+  This achieves the auto-fixed vs. needs-action split from Z-04 **without any backend change** —
+  it's a frontend mapping decision on the existing `issues[].status` field.
+- **No issues:** `total_notes: 0` and `issues: []`. Frontend must render the success state
+  ("Your manuscript was processed successfully. No major formatting issues were found.") rather
+  than treating an empty issues array as an error or blank screen.
+
+**`successful_checks[]`:** not currently a field the backend returns. If Z-04's design needs an
+explicit "what passed" list (not just "what failed"), this is a **backend gap** — the pipeline
+currently only surfaces problems, not passes. Flag to team: either backend adds this, or the
+Results screen infers "checks not mentioned = passed" without an explicit list.
+
+**Paywall fields:** confirmed removed. The old `writer.html`'s `freeItems`/`lockedItems` split was
+hardcoded client-side mock data — the real backend payload has never had free/locked fields. No
+backend change needed to "remove" them; just don't build that split into the new Results screen.
+
+**Clean vs. tracked-changes toggle:** **not feasible this sprint.** `download_url` returns exactly
+one file — the tracked-changes version (Sam's `build_edited_document` output). Producing a second
+"clean" version would need either a new endpoint or an additional pipeline run generating a second
+file, which is backend work not currently planned. **Contract: tracked-only for this sprint.**
+Z-04's toggle proposal should be logged as a future enhancement, not built now.
+
+**Header counts:** `total_notes` (int) is already returned — matches Z-04's "N corrections applied"
+header requirement directly.
