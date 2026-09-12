@@ -211,3 +211,25 @@ endpoint.
 - **G-06:** none of the failure payloads above currently include `session_id` or `filename`
   consistently across all error cases — needs a pass to guarantee `{ error_code, session_id,
   filename }` shape everywhere, per G-06.
+
+
+  ---
+
+## G-02 — Upload validation error codes
+
+| Code | Trigger | Client or Server | HTTP Status | Implemented? |
+|---|---|---|---|---|
+| `BAD_TYPE` | Wrong file extension | Client (pre-upload) | — | Backend fallback: 400 `"Only .docx files are accepted"` |
+| `EMPTY` | No file selected | Client (pre-upload) | — | Backend fallback: 400 `"No file uploaded"` |
+| `TOO_LARGE` | File exceeds size limit | Server | 413 | ✅ Implemented |
+| `OVER_WORD_LIMIT` | Word count exceeds max | Server | 400 | ✅ Implemented |
+| `NETWORK_FAIL` | Connection drops mid-upload | Client only | — | ✅ Frontend concern only |
+| `FAKE_DOCX` | `.docx` extension, corrupted internal structure | Server | 400 | ❌ Not implemented — currently would crash ungracefully in the pipeline instead of returning a clean error |
+| `CORRUPT` | File can't be opened/parsed | Server | 400 | ❌ Not implemented — same gap |
+| `PASSWORD_LOCKED` | Document is password-protected | Server | 400 | ❌ Not implemented — no check exists |
+
+**`.doc` handling:** Already rejected by the existing `.endswith(".docx")` check, just with the generic wrong-type message. Open question: does `.doc` need its own specific copy ("older format not supported, please save as .docx"), or is the generic message fine?
+
+**Word count method:** Backend is authoritative — `_document_word_count()` opens the file and counts every paragraph via `python-docx`. No client-side estimate currently exists. Open question: does the frontend need a rough pre-upload estimate for instant feedback, or is waiting for the server count acceptable?
+
+**Action required:** `FAKE_DOCX`, `CORRUPT`, and `PASSWORD_LOCKED` need real backend implementation (wrapping the document-open call in error handling and mapping specific failure types to these codes) — this isn't just a documentation task, it's a follow-up dev task.
