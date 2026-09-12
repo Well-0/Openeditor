@@ -233,3 +233,34 @@ endpoint.
 **Word count method:** Backend is authoritative — `_document_word_count()` opens the file and counts every paragraph via `python-docx`. No client-side estimate currently exists. Open question: does the frontend need a rough pre-upload estimate for instant feedback, or is waiting for the server count acceptable?
 
 **Action required:** `FAKE_DOCX`, `CORRUPT`, and `PASSWORD_LOCKED` need real backend implementation (wrapping the document-open call in error handling and mapping specific failure types to these codes) — this isn't just a documentation task, it's a follow-up dev task.
+
+
+
+---
+
+## G-03 — Processing poll/state machine + Cancel/timeout + carousel
+
+**Poll loop:** After `POST /api/upload` returns a `session_id`, frontend polls `GET /api/results/<session_id>` on a fixed interval (recommend every 1-2 seconds) until `status` is no longer `"processing"`.
+
+**Stage → step-label mapping** (reusing `STAGE_TO_STEP` from `app/static/script.js`):
+| `stage` value | UI step |
+|---|---|
+| `starting`, `structure`, `analysis` | 0 |
+| `refs`, `references` | 1 |
+| `llm`, `editorial` | 2 |
+| `building`, `finalizing`, `done` | 3 |
+
+**Timeout — which fires first:**
+- Server-side: `ANALYSIS_TIMEOUT_SECONDS` (default 600s / 10 min) — the pipeline itself aborts and the session status becomes `"timeout"`, returned as HTTP 504 on the next poll.
+- Client-side: PRD specifies a ~10:00 client timeout too. Since the server ceiling is already 10 min, the client timeout should be set to fire *after* the server's (e.g. 10:05) so the server's clean timeout message always wins over a generic client-side "giving up" message. If the client timer fires first, it should still just show the same "took too long" messaging, not a different one.
+
+**Cancel semantics (`POST /api/cancel/<session_id>`):**
+- Sets `cancel_requested: true` server-side. The pipeline checks this cooperatively at its next progress checkpoint — **not instant**, there can be a short delay before the backend actually stops, depending on which stage it's in.
+- After cancel, polling `GET /api/results/<session_id>` returns 409 `{ "status": "cancelled", "error": "Processing cancelled" }`.
+- Guarantee: no file is retained after cancel — frontend should treat this as "return to a fresh Upload screen, nothing kept," matching Z-03's spec.
+
+**Carousel (`GET /api/jutlp-articles`):**
+- Returns `{ "articles": [{ title, author, abstract, url }] }`.
+- **This is a live scraper**, not static data — it fetches real pages from `open-publishing.org` on cache miss (6-hour cache), falling back to one hardcoded article if scraping fails entirely. It always returns at least one article, but could silently degrade to only the fallback if the source site changes structure.
+- Implement as a toggle: `CAROUSEL_ENABLED` env var, default `true`. When `false`, frontend should not call this endpoint or show the carousel at all.
+- Pending Joey's sign-off per Z-03/H-03 note — carousel default (on/off) needs explicit client confirmation before shipping.
