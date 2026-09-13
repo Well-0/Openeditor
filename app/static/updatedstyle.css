@@ -121,9 +121,31 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
  
 .oe-dz input[type=file] { display: none; }
  
-.oe-dz-main { font-family: var(--serif); font-size: 18px; }
-.oe-dz-browse { text-decoration: underline; text-underline-offset: 2px; }
- 
+.oe-dz-main {
+  font-family: var(--serif);
+  font-size: 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.oe-dz-browse-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--ink);
+  padding: 10px 20px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.oe-dz-browse-btn:hover {
+  background: var(--ink);
+  color: var(--white);
+}
 .oe-dz-filename { font-family: var(--mono); font-size: 13px; }
 .oe-dz-remove {
   margin-left: 10px;

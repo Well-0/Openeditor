@@ -41,10 +41,13 @@
           @dragleave.prevent="isDragOver = false"
           @drop.prevent="isDragOver = false; onFileDropped($event)">
   
-          <input id="file-input" type="file" accept=".docx" @change="onFileSelected($event)">
+          <input x-ref="fileInput" id="file-input" type="file" accept=".docx" @change="onFileSelected($event)">
   
           <template x-if="!selectedFile">
-            <div class="oe-dz-main">Drop your .docx file here, or <span class="oe-dz-browse">browse</span></div>
+            <div class="oe-dz-main">
+              <p>Drag and drop your Word document here</p>
+              <button type="button" class="oe-dz-browse-btn" @click.prevent.stop="$refs.fileInput.click()">Browse Files</button>
+            </div>
           </template>
   
           <template x-if="selectedFile">
