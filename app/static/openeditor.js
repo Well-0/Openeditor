@@ -102,7 +102,7 @@ document.addEventListener('alpine:init', () => {
 
     stepNumber() {
         if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
-      if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled') return 2;
+      if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled'||this.currentPhase === 'timeout') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
@@ -142,6 +142,7 @@ document.addEventListener('alpine:init', () => {
         this.elapsedSeconds = 0;
 
         const totalDurationMs = 5000;
+        const timeoutSeconds = 600;
         const stepMs = 100;
         let elapsedMs = 0;
 
@@ -156,8 +157,15 @@ document.addEventListener('alpine:init', () => {
             }
         }, stepMs);
         //fetch articles in background without blocking any timers
+
         this.elapsedTimer = setInterval(() => {
             this.elapsedSeconds++;
+            if (this.elapsedSeconds >= timeoutSeconds) {
+                clearInterval(this.processingTimer);
+                clearInterval(this.elapsedTimer);
+                this.stopJutlpRotation();
+                this.currentPhase = 'timeout';
+            }
         }, 1000);
 
         this.fetchJutlpArticles().then(() => this.startJutlpRotation());
@@ -246,6 +254,8 @@ document.addEventListener('alpine:init', () => {
             this.jutlpRotateTimer = null;
         }
     },
-    
+    retryProcessing() {
+        this.startProcessing();
+    },
   }));
 });

@@ -123,6 +123,7 @@
           </div>
         </div>
       </div>
+      
       <!-- Cancelled -->
       <div x-show="currentPhase === 'cancelled'" x-cloak>
         <div class="oe-error-bar"></div>
@@ -133,6 +134,20 @@
           <button class="oe-btn-primary" @click="resetToUpload()">Upload a File</button>
         </div>
       </div>
+
+      <!-- Timeout -->
+      <div x-show="currentPhase === 'timeout'" x-cloak>
+        <div class="oe-error-bar"></div>
+        <div class="oe-eyebrow">PROCESSING STOPPED</div>
+        <h2 class="oe-headline">This took longer than ten minutes</h2>
+        <p class="oe-lede">Unable to finish processing your manuscript. Please try again. Your upload has been deleted. Complex documents with many tables or embedded objects are the usual cause.</p>
+        <div class="oe-submit-row left">
+          <button class="oe-btn-primary" @click="retryProcessing()">Try Again</button>
+          <button class="oe-btn-ghost" @click="resetToUpload()" style="margin-left: 16px;">Upload a Different File</button>
+        </div>
+        <p class="oe-lede" style="margin-top: 32px; font-style: italic; color: var(--ink3);">If this keeps happening, contact OAPA and we will look at the document directly.</p>
+      </div>
+
       <!-- ======================== 3.RESULTS ======================== -->
       <div x-show="currentPhase === 'results'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
