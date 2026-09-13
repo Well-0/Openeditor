@@ -466,3 +466,10 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 .oe-modal-actions .oe-btn-ghost {
   flex: 1;
 }
+/* ─── Error bar (blocked / wrong file type) ────── */
+.oe-error-bar {
+  width: 1200px;
+  height: 4px;
+  background: var(--ink);
+  margin-bottom: 56px;
+}

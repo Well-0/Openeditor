@@ -123,7 +123,16 @@
           </div>
         </div>
       </div>
-
+      <!-- Cancelled -->
+      <div x-show="currentPhase === 'cancelled'" x-cloak>
+        <div class="oe-error-bar"></div>
+        <div class="oe-eyebrow">PROCESSING CANCELLED</div>
+        <h2 class="oe-headline">You cancelled this job</h2>
+        <p class="oe-lede">Your upload has been deleted. Nothing was saved. You can upload your file again whenever you are ready.</p>
+        <div class="oe-submit-row left">
+          <button class="oe-btn-primary" @click="resetToUpload()">Upload a File</button>
+        </div>
+      </div>
       <!-- ======================== 3.RESULTS ======================== -->
       <div x-show="currentPhase === 'results'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>

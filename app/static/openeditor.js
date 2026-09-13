@@ -102,7 +102,7 @@ document.addEventListener('alpine:init', () => {
 
     stepNumber() {
         if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
-      if (this.currentPhase === 'processing') return 2;
+      if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
@@ -141,7 +141,7 @@ document.addEventListener('alpine:init', () => {
         this.processingPercent = 0;
         this.elapsedSeconds = 0;
 
-        const totalDurationMs = 10000;
+        const totalDurationMs = 5000;
         const stepMs = 100;
         let elapsedMs = 0;
 
@@ -172,7 +172,10 @@ document.addEventListener('alpine:init', () => {
         clearInterval(this.processingTimer);
         clearInterval(this.elapsedTimer);
         this.stopJutlpRotation();
-        this.resetToUpload();
+        this.selectedFile = null;
+        const input = document.getElementById('file-input');
+        if (input) input.value = '';
+        this.currentPhase = 'cancelled';
     },
 
     keepProcessing() {
