@@ -393,6 +393,10 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
   color: var(--ink2);
   max-width: 52ch;
   margin-bottom: 16px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
 }
 
 .oe-carousel-actions {
@@ -424,4 +428,41 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 .oe-carousel-next:hover {
   border-color: var(--ink3);
   color: var(--ink);
+}
+.oe-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.oe-modal {
+  background: var(--white);
+  border: 1px solid var(--ink);
+  padding: 40px;
+  width: 490px;
+  box-sizing: border-box;
+}
+
+.oe-modal .oe-headline {
+  font-size: 24px;
+  margin: 12px 0 16px;
+}
+
+.oe-modal .oe-lede {
+  margin-bottom: 32px;
+  max-width: none;
+}
+
+.oe-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.oe-modal-actions .oe-btn-primary,
+.oe-modal-actions .oe-btn-ghost {
+  flex: 1;
 }

@@ -26,6 +26,8 @@ document.addEventListener('alpine:init', () => {
     }],
     jutlpArticleIndex: 0,
     jutlpRotateTimer: null,
+    showCancelConfirm: false,
+
     // ─── RESULTS state ───
     totalCorrections: 34,
     freeItems: [
@@ -161,11 +163,20 @@ document.addEventListener('alpine:init', () => {
         this.fetchJutlpArticles().then(() => this.startJutlpRotation());
     },
 
-    cancelProcessing() {
+    requestCancel() {
+        this.showCancelConfirm = true;
+    },
+
+    confirmCancel() {
+        this.showCancelConfirm = false;
         clearInterval(this.processingTimer);
         clearInterval(this.elapsedTimer);
         this.stopJutlpRotation();
         this.resetToUpload();
+    },
+
+    keepProcessing() {
+        this.showCancelConfirm = false;
     },
 
     resetToUpload() {

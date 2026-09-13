@@ -99,7 +99,7 @@
         <div class="oe-timer">ELAPSED <span x-text="elapsedFormatted"></span> &middot; STOPS AUTOMATICALLY AT 10:00</div>
 
         <div class="oe-submit-row left">
-          <button class="oe-btn-ghost" @click="cancelProcessing()">Cancel</button>
+          <button class="oe-btn-ghost" @click="requestCancel()">Cancel</button>
         </div>
         <div class="oe-while-you-wait" x-show="carouselEnabled" x-cloak>
           <div class="oe-eyebrow">WHILE YOU WAIT</div>
@@ -110,6 +110,17 @@
             <a class="oe-carousel-link" :href="currentArticle.url" target="_blank" rel="noopener">Read article</a>
             <button class="oe-carousel-next" type="button" @click="nextJutlpArticle()">Next article</button>
           </div> 
+        </div>
+        <div class="oe-modal-overlay" x-show="showCancelConfirm" x-cloak>
+          <div class="oe-modal">
+            <div class="oe-eyebrow">CANCEL PROCESSING</div>
+            <h2 class="oe-headline">Stop working on your manuscript?</h2>
+            <p class="oe-lede">Processing will stop and your upload will be deleted. You will need to upload your file again to start over.</p>
+            <div class="oe-modal-actions">
+              <button class="oe-btn-primary" @click="keepProcessing()">Keep Processing</button>
+              <button class="oe-btn-ghost" @click="confirmCancel()">Cancel and Start Over</button>
+            </div>
+          </div>
         </div>
       </div>
 
