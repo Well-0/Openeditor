@@ -6,6 +6,7 @@
   <title>OpenEditor</title>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script> <!--HTMX-->>
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script> <!--Alpine.js -->>
+  <script src="{{ url_for('static', filename='openeditor.js') }}"></script> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -16,108 +17,103 @@
 <div x-data="openEditorApp()" x-init="init()">
  
   <div class="oe-frame-wrapper">
-<div class="oe-frame">
-    <div class="oe-signature">
-  <img src="{{ url_for('static', filename='oapa-logo.png') }}" class="oapa-logo" alt="OAPA">
-</div>
-    <div class="oe-progress" x-show="currentPhase !== 'blocked'">
-  <template x-for="n in 4" :key="n">
-    <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
-  </template>
-</div>
-<!-- ============ BLOCKED (wrong file type) ============ -->
-<div x-show="currentPhase === 'blocked'" x-cloak>
-    <h2 class="oe-headline">Unsupported file type</h2>
-    <p class="oe-lede">We can only process .docx or .rtf files. Please upload a different file.</p>
-    <div class="oe-submit-row">
-        <button class="oe-btn-primary" @click="resetToUpload()">Upload a different file</button>
-    </div>
-    <p class="oe-lede" style="margin-top: 40px;">Nothing was charged.</p>
-</div>
- 
-    <!-- ============ UPLOAD  ============ -->
-    <div x-show="currentPhase === 'upload'" x-cloak>
-        <div class="oe-eyebrow">STEP 1 OF 4 &middot; UPLOAD</div>
-      <h2 class="oe-headline">Upload your manuscript</h2>
-      <p class="oe-lede">OpenEditor corrects your document against APA7 and checks every reference against Crossref. Your original file is deleted once you download the result.</p>
- 
-      <label
-        for="file-input"
-        class="oe-dz"
-        :class="{ 'has-file': selectedFile || isDragOver }"
-        @dragover.prevent="isDragOver = true"
-        @dragleave.prevent="isDragOver = false"
-        @drop.prevent="isDragOver = false; onFileDropped($event)">
- 
-        <input id="file-input" type="file" accept=".docx" @change="onFileSelected($event)">
- 
-        <template x-if="!selectedFile">
-          <div class="oe-dz-main">Drop your .docx file here, or <span class="oe-dz-browse">browse</span></div>
-        </template>
- 
-        <template x-if="selectedFile">
-          <div class="oe-dz-main">
-            <span class="oe-dz-filename" x-text="selectedFile.name"></span>
-            <button type="button" class="oe-dz-remove" @click.prevent.stop="removeFile()">Remove</button>
-          </div>
-        </template>
- 
-        <div class="oe-dz-pill">.docx only &middot; 20 MB MAXIMUM &middot; 15,000 words MAXIMUM</div>
-      </label>
- 
-      <div class="oe-submit-row">
-        <button class="oe-btn-primary" :disabled="!canSubmit" @click="startChecking()">
-          Continue
-        </button>
+    <div class="oe-frame">
+      <div class="oe-signature">
+        <img src="{{ url_for('static', filename='oapa-logo.png') }}" class="oapa-logo" alt="OAPA">
       </div>
-    </div>
+      <div class="oe-progress" x-show="currentPhase !== 'blocked'">
+        <template x-for="n in 4" :key="n">
+          <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
+        </template>
+      </div>
  
-    <!-- ============ CHECKING ============ -->
-    <div x-show="currentPhase === 'checking'" x-cloak>
+      <!-- ========================  1.UPLOAD STAGE  ========================  -->
+      <div x-show="currentPhase === 'upload'" x-cloak>
+        <div class="oe-eyebrow">STEP 1 OF 4 &middot; UPLOAD</div>
+        <h2 class="oe-headline">Upload your manuscript</h2>
+        <p class="oe-lede">OpenEditor corrects your document against APA7 and checks every reference against Crossref. Your original file is deleted once you download the result.</p>
+
+        <label
+          for="file-input"
+          class="oe-dz"
+          :class="{ 'has-file': selectedFile || isDragOver, 'has-error': fileError }"
+          @dragover.prevent="isDragOver = true"
+          @dragleave.prevent="isDragOver = false"
+          @drop.prevent="isDragOver = false; onFileDropped($event)">
+  
+          <input id="file-input" type="file" accept=".docx" @change="onFileSelected($event)">
+  
+          <template x-if="!selectedFile">
+            <div class="oe-dz-main">Drop your .docx file here, or <span class="oe-dz-browse">browse</span></div>
+          </template>
+  
+          <template x-if="selectedFile">
+            <div class="oe-dz-main">
+              <span class="oe-dz-filename" x-text="selectedFile.name"></span>
+              <button type="button" class="oe-dz-remove" @click.prevent.stop="removeFile()">Remove</button>
+            </div>
+          </template>
+  
+          <div class="oe-dz-pill">.docx only &middot; 20 MB MAXIMUM &middot; 15,000 words MAXIMUM</div>
+        </label>
+        
+        <p class="oe-error-text" x-show="fileError" x-text="fileError"></p>
+        <div class="oe-submit-row">
+          <button class="oe-btn-primary" :disabled="!canSubmit" @click="startChecking()">
+            Continue
+          </button>
+        </div>
+      </div>
+  
+      <!--============ Checking doc============ -->
+      <div x-show="currentPhase === 'checking'" x-cloak>
         <div class="oe-eyebrow">STEP 1 OF 4 &middot; CHECKING YOUR FILE</div>
         <h2 class="oe-headline">Checking your manuscript</h2>
         <div class="oe-file-meta" x-text="`${selectedFile ? selectedFile.name.toUpperCase() : ''} · ${fileSizeLabel}`"></div>
 
         <div class="oe-check-list">
-            <template x-for="row in checkRows" :key="row.label">
-                <div class="oe-check-row">
-                    <span class="oe-check-marker" x-text="row.done ? '■' : '□'"></span>
-                    <span class="oe-check-label" x-text="row.label"></span>
-                    <span class="oe-check-status" x-text="row.status"></span>
-                </div>
-            </template>
-    </div>
-    <p class="oe-lede" style="margin-top: 40px;">Nothing is charged until you choose to upgrade.</p>
-    </div>
-    <!-- ============ PROCESSING ============ -->
-    <div x-show="currentPhase === 'processing'" x-cloak>
+          <template x-for="row in checkRows" :key="row.label">
+            <div class="oe-check-row">
+                <span class="oe-check-marker" x-text="row.done ? '■' : '□'"></span>
+                <span class="oe-check-label" x-text="row.label"></span>
+                <span class="oe-check-status" x-text="row.status"></span>
+            </div>
+          </template>
+        </div>
+        <p class="oe-lede" style="margin-top: 40px;">Nothing is charged until you choose to upgrade.</p>
+      </div>
+
+      <!-- ========================  2.PROCESSING STAGE ========================  -->
+      <!--Processing-->
+      <div x-show="currentPhase === 'processing'" x-cloak>
         <div class="oe-eyebrow">STEP 2 OF 4 &middot; PROCESSING</div>
         <h2 class="oe-headline">Correcting your manuscript</h2>
         <p class="oe-lede">Still working. Longer manuscripts take a few minutes.</p>
         <div class="oe-progress-track">
-            <div class="oe-progress-fill" :style="`width: ${processingPercent}%`"></div>
+          <div class="oe-progress-fill" :style="`width: ${processingPercent}%`"></div>
         </div>
 
         <div class="oe-timer">ELAPSED <span x-text="elapsedFormatted"></span> &middot; STOPS AUTOMATICALLY AT 5:00</div>
 
         <div class="oe-submit-row left">
-            <button class="oe-btn-ghost" @click="cancelProcessing()">Cancel</button>
+          <button class="oe-btn-ghost" @click="cancelProcessing()">Cancel</button>
         </div>
-    </div>
-    <!-- ============ RESULTS ============ -->
-    <div x-show="currentPhase === 'results'" x-cloak>
+      </div>
+
+      <!-- ======================== 3.RESULTS ======================== -->
+      <div x-show="currentPhase === 'results'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
         <h2 class="oe-headline" x-text="`${totalCorrections} corrections applied`"></h2>
 
         <div class="oe-results-columns">
-            <div class="oe-results-col">
+          <div class="oe-results-col">
             <div class="oe-results-col-header">INCLUDED IN YOUR FREE VERSION</div>
             <template x-for="item in freeItems" :key="item.label">
-                <div class="oe-results-row">
+              <div class="oe-results-row">
                 <span class="oe-results-marker">■</span>
                 <span class="oe-results-label" x-text="item.label"></span>
                 <span class="oe-results-status" x-text="item.status"></span>
-                </div>
+              </div>
             </template>
             </div>
 
@@ -125,9 +121,9 @@
             <div class="oe-results-col-header">REQUIRES THE FULL VERSION</div>
             <template x-for="item in lockedItems" :key="item.label">
                 <div class="oe-results-row">
-                <span class="oe-results-marker">□</span>
-                <span class="oe-results-label" x-text="item.label"></span>
-                <span class="oe-results-status" x-text="item.status"></span>
+                  <span class="oe-results-marker">□</span>
+                  <span class="oe-results-label" x-text="item.label"></span>
+                  <span class="oe-results-status" x-text="item.status"></span>
                 </div>
             </template>
             <p class="oe-results-aside">Six references could not be verified. The full version tells you which.</p>
@@ -135,17 +131,18 @@
         </div>
 
         <div class="oe-submit-row left" style="margin-top: 40px;">
-            <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
-            <button class="oe-btn-primary" @click="goToUpgrade()" style="margin-left: 16px;">See the full version</button>
+          <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
+          <button class="oe-btn-primary" @click="goToUpgrade()" style="margin-left: 16px;">See the full version</button>
         </div>
-    </div>
-    <!-- ============ UPGRADE ============ -->
-    <div x-show="currentPhase === 'upgrade'" x-cloak>
+      </div>
+
+      <!--UPGRADE -->
+      <div x-show="currentPhase === 'upgrade'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
         <h2 class="oe-headline">Choose your version</h2>
 
         <div class="oe-upgrade-cards">
-            <div class="oe-upgrade-card">
+          <div class="oe-upgrade-card">
             <div class="oe-upgrade-card-label">FREE</div>
             <h3 class="oe-upgrade-card-price">No charge</h3>
             <p class="oe-upgrade-card-desc">
@@ -154,23 +151,22 @@
                 Reference list left untouched.
             </p>
             <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
-            </div>
+          </div>
 
-            <div class="oe-upgrade-card selected">
+          <div class="oe-upgrade-card selected">
             <div class="oe-upgrade-card-label">FULL</div>
             <h3 class="oe-upgrade-card-price">$12 per manuscript</h3>
             <p class="oe-upgrade-card-desc">
                 Everything in Free, plus every reference and DOI checked against Crossref, with each problem named.
             </p>
             <button class="oe-btn-primary" @click="payAndDownload()">Pay and download</button>
-            </div>
+          </div>
         </div>
-
         <p class="oe-upgrade-footnote">One manuscript, one payment. No subscription. Your file is deleted after download.</p>
-    </div>
+      </div>
 
-    <!-- ============ DOWNLOAD ============ -->
-    <div x-show="currentPhase === 'download'" x-cloak>
+      <!-- ======================== 4.DOWNLOAD ======================== -->
+      <div x-show="currentPhase === 'download'" x-cloak>
         <div class="oe-eyebrow">STEP 4 OF 4 &middot; DOWNLOAD</div>
         <h2 class="oe-headline">Your manuscript is ready</h2>
         <div class="oe-file-meta" x-text="downloadFileLabel"></div>
@@ -178,184 +174,14 @@
         <p class="oe-lede">This is the only time you can download this file. Once you leave, your upload and the corrected version are both deleted from our servers.</p>
 
         <div class="oe-submit-row left">
-            <button class="oe-btn-primary" @click="downloadManuscript()">Download manuscript</button>
+          <button class="oe-btn-primary" @click="downloadManuscript()">Download manuscript</button>
         </div>
         <button class="oe-link-muted" @click="resetToUpload()">Process another file</button>
+      </div>
     </div>
-</div>
+  </div>
 </div>
  
-<script>
-function openEditorApp() {
-  return {
-    currentPhase: 'upload',
-    selectedFile: null,
-    isDragOver: false,
-    hasDownloaded: false,
-    totalCorrections: 34,
-    freeItems: [
-    { label: 'Heading hierarchy', status: '12 FIXED' },
-    { label: 'Line spacing and margins', status: '9 FIXED' },
-    { label: 'In-text citation format', status: '8 FIXED' },
-    { label: 'Title page and running head', status: '5 FIXED' }
-    ],
-    lockedItems: [
-    { label: 'Reference list validated', status: '6 FLAGGED' },
-    { label: 'DOIs checked against Crossref', status: 'LOCKED' },
-    { label: 'Broken references reported', status: 'LOCKED' }
-    ],
-    checkRows: [
-      { label: 'File type', done: false, status: 'PENDING' },
-      { label: 'File size', done: false, status: 'PENDING' },
-      { label: 'Word count', done: false, status: 'WAITING' },
-      { label: 'Document readable', done: false, status: 'WAITING' }
-    ],
-    processingPercent: 0,
-    elapsedSeconds: 0,
-    processingTimer: null,
-    elapsedTimer: null,
-
-    init() {
-      window.onbeforeunload = () => {
-        if ((this.currentPhase === 'results' || this.currentPhase === 'upgrade' || this.currentPhase === 'download') && !this.hasDownloaded) {
-          return 'You have a completed report you have not downloaded yet.';
-        }
-      };
-    },
-
-    onFileSelected(event) {
-      this.applyFile(event.target.files[0]);
-    },
-
-    onFileDropped(event) {
-      const file = event.dataTransfer.files[0];
-      this.applyFile(file);
-      const input = document.getElementById('file-input');
-      if (input && event.dataTransfer.files.length) {
-        input.files = event.dataTransfer.files;
-      }
-    },
-
-    applyFile(file) {
-  if (!file) return;
-  const validExtensions = ['.docx', '.rtf'];
-  const fileName = file.name.toLowerCase();
-  const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-  if (!isValid) {
-    this.currentPhase = 'blocked';
-    return;
-  }
-  this.selectedFile = file;
-},
-
-    removeFile() {
-      this.selectedFile = null;
-      const input = document.getElementById('file-input');
-      if (input) input.value = '';
-    },
-
-    get canSubmit() {
-      return !!this.selectedFile;
-    },
-
-    get elapsedFormatted() {
-      const m = Math.floor(this.elapsedSeconds / 60);
-      const s = this.elapsedSeconds % 60;
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    },
-
-    stepNumber() {
-      if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
-      if (this.currentPhase === 'processing') return 2;
-      if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
-      return 4;
-    },
-
-    startChecking() {
-      if (!this.canSubmit) return;
-      this.currentPhase = 'checking';
-      this.runChecklist();
-    },
-
-    runChecklist() {
-      // Hardcoded rows + fixed delays — no real validation happening here.
-      this.checkRows = [
-        { label: 'File type', done: false, status: '.DOCX' },
-        { label: 'File size', done: false, status: '4.2 MB OF 20 MB' },
-        { label: 'Word count', done: false, status: 'COUNTING...' },
-        { label: 'Document readable', done: false, status: 'WAITING' }
-      ];
-
-      const delays = [500, 1100, 1700, 2300];
-      delays.forEach((delay, i) => {
-        setTimeout(() => {
-          this.checkRows[i].done = true;
-          if (this.checkRows[i].label === 'Word count') this.checkRows[i].status = 'COUNTED';
-          if (this.checkRows[i].label === 'Document readable') this.checkRows[i].status = 'READABLE';
-          if (i === this.checkRows.length - 1) {
-            setTimeout(() => this.startProcessing(), 400);
-          }
-        }, delay);
-      });
-    },
-
-    startProcessing() {
-      this.currentPhase = 'processing';
-      this.processingPercent = 0;
-      this.elapsedSeconds = 0;
-
-      const totalDurationMs = 5000; // fixed simulated duration — "Stops at 5:00"
-      const stepMs = 100;
-      let elapsedMs = 0;
-
-      this.processingTimer = setInterval(() => {
-        elapsedMs += stepMs;
-        this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
-        if (elapsedMs >= totalDurationMs) {
-          clearInterval(this.processingTimer);
-          clearInterval(this.elapsedTimer);
-          this.currentPhase = 'results';
-        }
-      }, stepMs);
-
-      this.elapsedTimer = setInterval(() => {
-        this.elapsedSeconds++;
-      }, 1000);
-    },
-
-    cancelProcessing() {
-      clearInterval(this.processingTimer);
-      clearInterval(this.elapsedTimer);
-      this.resetToUpload();
-    },
-
-    resetToUpload() {
-      clearInterval(this.processingTimer);
-      clearInterval(this.elapsedTimer);
-      this.selectedFile = null;
-      this.hasDownloaded = false;
-      this.currentPhase = 'upload';
-      const input = document.getElementById('file-input');
-      if (input) input.value = '';
-    },
-    goToUpgrade() {
-        this.currentPhase = 'upgrade';
-    },
-    payAndDownload() {
-        // No real payment/file returned per spec — just advances state.
-        this.currentPhase = 'download';
-    },
-
-    downloadManuscript() {
-    // No real file returned per spec — just marks as downloaded.
-    this.hasDownloaded = true;
-    },
-  };
-}
-
-</script>
-
-
 <script>
   function updateFrameScale() {
     const scaleX = window.innerWidth / 1440;
@@ -367,4 +193,6 @@ function openEditorApp() {
   updateFrameScale();
 </script>
 
+</body>
+</html>
 
