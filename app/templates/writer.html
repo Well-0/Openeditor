@@ -52,7 +52,7 @@
   
           <template x-if="selectedFile">
             <div class="oe-dz-main">
-              <span class="oe-dz-filename" x-text="selectedFile.name"></span>
+              <span class="oe-dz-filename" x-text="`${selectedFile.name} · ${fileSizeLabel}`"></span>
               <button type="button" class="oe-dz-remove" @click.prevent.stop="removeFile()">Remove</button>
             </div>
           </template>
@@ -96,10 +96,20 @@
           <div class="oe-progress-fill" :style="`width: ${processingPercent}%`"></div>
         </div>
 
-        <div class="oe-timer">ELAPSED <span x-text="elapsedFormatted"></span> &middot; STOPS AUTOMATICALLY AT 5:00</div>
+        <div class="oe-timer">ELAPSED <span x-text="elapsedFormatted"></span> &middot; STOPS AUTOMATICALLY AT 10:00</div>
 
         <div class="oe-submit-row left">
           <button class="oe-btn-ghost" @click="cancelProcessing()">Cancel</button>
+        </div>
+        <div class="oe-while-you-wait" x-show="carouselEnabled" x-cloak>
+          <div class="oe-eyebrow">WHILE YOU WAIT</div>
+          <h3 class="oe-carousel-title" x-text="currentArticle.title"></h3>
+          <p class="oe-carousel-author" x-text="currentArticle.author"></p>
+          <p class="oe-carousel-abstract" x-text="currentArticle.abstract"></p>
+          <div class="oe-carousel-actions">
+            <a class="oe-carousel-link" :href="currentArticle.url" target="_blank" rel="noopener">Read article</a>
+            <button class="oe-carousel-next" type="button" @click="nextJutlpArticle()">Next article</button>
+          </div> 
         </div>
       </div>
 
