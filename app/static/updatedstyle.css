@@ -56,14 +56,25 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 
 /* Reproduces the Figma canvas at literal 1440x900 so spacing/positions
    can be checked directly against the design file. */
+.oe-frame-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .oe-frame {
   position: relative;
   width: 1440px;
   min-height: 900px;
-  margin: 40px auto;
+  margin: 0;
   background: var(--white);
   padding: 80px 120px 60px;
   box-sizing: border-box;
+  transform: scale(var(--oe-scale, 1));
+  transform-origin: center center;
 }
  
 /* Progress indicator: y80, full content width, 4 segments */
@@ -80,6 +91,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 }
  
 .oe-lede {
+  font-family: var(--serif);
   font-size: 14px;
   line-height: 1.6;
   color: var(--ink2);
@@ -109,9 +121,31 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
  
 .oe-dz input[type=file] { display: none; }
  
-.oe-dz-main { font-family: var(--serif); font-size: 18px; }
-.oe-dz-browse { text-decoration: underline; text-underline-offset: 2px; }
- 
+.oe-dz-main {
+  font-family: var(--serif);
+  font-size: 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.oe-dz-browse-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--ink);
+  padding: 10px 20px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.oe-dz-browse-btn:hover {
+  background: var(--ink);
+  color: var(--white);
+}
 .oe-dz-filename { font-family: var(--mono); font-size: 13px; }
 .oe-dz-remove {
   margin-left: 10px;
@@ -321,3 +355,121 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
   text-transform: uppercase;
 }
 .oe-link-muted:hover { color: var(--ink); }
+.oe-dz.has-error {
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%23b5362a' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat ;
+}
+
+.oe-error-text {
+  font-family: var(--serif);
+  color: var(--red);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+
+.oe-while-you-wait {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.oe-carousel-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 400;
+  margin: 12px 0 6px;
+}
+
+.oe-carousel-author {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink3);
+  margin-bottom: 12px;
+}
+
+.oe-carousel-abstract {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink2);
+  max-width: 52ch;
+  margin-bottom: 16px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+
+.oe-carousel-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.oe-carousel-link {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.oe-carousel-next {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink3);
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.oe-carousel-next:hover {
+  border-color: var(--ink3);
+  color: var(--ink);
+}
+.oe-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.oe-modal {
+  background: var(--white);
+  border: 1px solid var(--ink);
+  padding: 40px;
+  width: 490px;
+  box-sizing: border-box;
+}
+
+.oe-modal .oe-headline {
+  font-size: 24px;
+  margin: 12px 0 16px;
+}
+
+.oe-modal .oe-lede {
+  margin-bottom: 32px;
+  max-width: none;
+}
+
+.oe-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.oe-modal-actions .oe-btn-primary,
+.oe-modal-actions .oe-btn-ghost {
+  flex: 1;
+}
+/* ─── Error bar (blocked / wrong file type) ────── */
+.oe-error-bar {
+  width: 1200px;
+  height: 4px;
+  background: var(--ink);
+  margin-bottom: 56px;
+}
