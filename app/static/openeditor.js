@@ -1,3 +1,5 @@
+import { uploadManuscript, pollUntilDone, cancelJob } from './api.js';
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('openEditorApp', () => ({
     // ─── UPLOAD state ───
@@ -5,8 +7,10 @@ document.addEventListener('alpine:init', () => {
     selectedFile: null,
     isDragOver: false,
     fileError: null,
+    sessionId: null,          // NEW — real session id from /api/upload
+    uploadError: null,        // NEW — surfaces real backend upload errors
 
-    // ─── PROCESSING state (checking is a sub-state — see TODO) ───
+    // ─── PROCESSING state ───
     checkRows: [
       { label: 'File type', done: false, status: 'PENDING' },
       { label: 'File size', done: false, status: 'PENDING' },
@@ -15,38 +19,39 @@ document.addEventListener('alpine:init', () => {
     ],
     processingPercent: 0,
     elapsedSeconds: 0,
-    processingTimer: null,
     elapsedTimer: null,
+    pollHandle: null,         // NEW — holds { promise, cancel } from pollUntilDone
     carouselEnabled: true,
     jutlpArticles: [{
-    title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
-    author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
-    abstract: 'This JUTLP article introduces the AI Assessment Scale as a practical framework for deciding when and how generative AI can be used in educational assessment.',
-    url: 'https://open-publishing.org/journals/index.php/jutlp/article/view/810/769'
+      title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
+      author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
+      abstract: 'This JUTLP article introduces the AI Assessment Scale as a practical framework for deciding when and how generative AI can be used in educational assessment.',
+      url: 'https://open-publishing.org/journals/index.php/jutlp/article/view/810/769'
     }],
     jutlpArticleIndex: 0,
     jutlpRotateTimer: null,
     showCancelConfirm: false,
 
-    // ─── RESULTS state ───
+    // ─── RESULTS state (still simulated — out of scope for this week) ───
     totalCorrections: 34,
     freeItems: [
-    { label: 'Heading hierarchy', status: '12 FIXED' },
-    { label: 'Line spacing and margins', status: '9 FIXED' },
-    { label: 'In-text citation format', status: '8 FIXED' },
-    { label: 'Title page and running head', status: '5 FIXED' }
+      { label: 'Heading hierarchy', status: '12 FIXED' },
+      { label: 'Line spacing and margins', status: '9 FIXED' },
+      { label: 'In-text citation format', status: '8 FIXED' },
+      { label: 'Title page and running head', status: '5 FIXED' }
     ],
     lockedItems: [
-    { label: 'Reference list validated', status: '6 FLAGGED' },
-    { label: 'DOIs checked against Crossref', status: 'LOCKED' },
-    { label: 'Broken references reported', status: 'LOCKED' }
+      { label: 'Reference list validated', status: '6 FLAGGED' },
+      { label: 'DOIs checked against Crossref', status: 'LOCKED' },
+      { label: 'Broken references reported', status: 'LOCKED' }
     ],
     hasDownloaded: false,
+    resultsPayload: null,     // NEW — will hold the real results once wired up
 
     get fileSizeLabel() {
-        if (!this.selectedFile) return '';
-        const mb = this.selectedFile.size / (1024 * 1024);
-        return mb.toFixed(1) + ' MB';
+      if (!this.selectedFile) return '';
+      const mb = this.selectedFile.size / (1024 * 1024);
+      return mb.toFixed(1) + ' MB';
     },
 
     init() {
@@ -76,11 +81,11 @@ document.addEventListener('alpine:init', () => {
       const fileName = file.name.toLowerCase();
       const isValid = validExtensions.some(ext => fileName.endsWith(ext));
       if (!isValid) {
-        this.fileError = 'This file type is not supported. Please upload a Microsoft Word document (.docx).'
+        this.fileError = 'This file type is not supported. Please upload a Microsoft Word document (.docx).';
         this.selectedFile = null;
         return;
       }
-      this.fileError=null;
+      this.fileError = null;
       this.selectedFile = file;
     },
 
@@ -101,161 +106,187 @@ document.addEventListener('alpine:init', () => {
     },
 
     stepNumber() {
-        if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
-      if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled'||this.currentPhase === 'timeout') return 2;
+      if (this.currentPhase === 'upload' || this.currentPhase === 'checking') return 1;
+      if (this.currentPhase === 'processing' || this.currentPhase === 'cancelled' || this.currentPhase === 'timeout') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
 
-    startChecking() {
+    // ─── REAL upload + processing (replaces the old simulated flow) ───
+
+    async startChecking() {
       if (!this.canSubmit) return;
       this.currentPhase = 'checking';
-      this.runChecklist();
-    },
+      this.uploadError = null;
 
-    runChecklist() {
-      // Hardcoded rows + fixed delays — no real validation happening here.
+      // "Checking" stays a quick client-side visual step (per G-01: checking
+      // is not a separate endpoint) — then we actually hit the real API.
       this.checkRows = [
-        { label: 'File type', done: false, status: '.DOCX' },
-        { label: 'File size', done: false, status: '4.2 MB OF 20 MB' },
-        { label: 'Word count', done: false, status: 'COUNTING...' },
+        { label: 'File type', done: true, status: '.DOCX' },
+        { label: 'File size', done: true, status: this.fileSizeLabel },
+        { label: 'Word count', done: false, status: 'UPLOADING...' },
         { label: 'Document readable', done: false, status: 'WAITING' }
       ];
 
-      const delays = [500, 1100, 1700, 2300];
-      delays.forEach((delay, i) => {
-        setTimeout(() => {
-          this.checkRows[i].done = true;
-          if (this.checkRows[i].label === 'Word count') this.checkRows[i].status = 'COUNTED';
-          if (this.checkRows[i].label === 'Document readable') this.checkRows[i].status = 'READABLE';
-          if (i === this.checkRows.length - 1) {
-            setTimeout(() => this.startProcessing(), 400);
-          }
-        }, delay);
-      });
+      try {
+        const { session_id } = await uploadManuscript(this.selectedFile);
+        this.sessionId = session_id;
+        this.checkRows[2].done = true;
+        this.checkRows[2].status = 'SUBMITTED';
+        this.checkRows[3].done = true;
+        this.checkRows[3].status = 'PROCESSING';
+        this.startProcessing();
+      } catch (err) {
+        // Real backend rejected the upload — surface it and go back to upload.
+        this.uploadError = err.message || 'Upload failed. Please try again.';
+        this.fileError = this.uploadError;
+        this.currentPhase = 'upload';
+      }
     },
 
+    startProcessing() {
+      this.currentPhase = 'processing';
+      this.processingPercent = 0;
+      this.elapsedSeconds = 0;
 
-    startProcessing() {   
-        this.currentPhase = 'processing';
-        this.processingPercent = 0;
-        this.elapsedSeconds = 0;
+      // Real elapsed-time display, ticking independently of the poll interval.
+      this.elapsedTimer = setInterval(() => {
+        this.elapsedSeconds++;
+      }, 1000);
 
-        const totalDurationMs = 5000;
-        const timeoutSeconds = 600;
-        const stepMs = 100;
-        let elapsedMs = 0;
+      this.pollHandle = pollUntilDone(
+        this.sessionId,
+        (payload, step) => {
+          // Real progress from the backend's 202 responses.
+          this.processingPercent = payload.progress ?? this.processingPercent;
+        }
+      );
 
-        this.processingTimer = setInterval(() => {
-            elapsedMs += stepMs;
-            this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
-            if (elapsedMs >= totalDurationMs) {
-            clearInterval(this.processingTimer);
-            clearInterval(this.elapsedTimer);
-            this.stopJutlpRotation();
-            this.currentPhase = 'results';
-            }
-        }, stepMs);
-        //fetch articles in background without blocking any timers
+      this.pollHandle.promise
+        .then((resultsPayload) => {
+          clearInterval(this.elapsedTimer);
+          this.stopJutlpRotation();
+          this.resultsPayload = resultsPayload;
+          this.currentPhase = 'results';
+        })
+        .catch((err) => {
+          clearInterval(this.elapsedTimer);
+          this.stopJutlpRotation();
+          if (err.errorCode === 'CANCELLED') {
+            this.currentPhase = 'cancelled';
+          } else if (err.errorCode === 'TIMEOUT') {
+            this.currentPhase = 'timeout';
+          } else {
+            // Pipeline error / session not found — no dedicated screen yet,
+            // fall back to timeout screen's messaging for now. Worth a real
+            // "error" phase in a future task.
+            console.error('Processing failed:', err);
+            this.currentPhase = 'timeout';
+          }
+        });
 
-        this.elapsedTimer = setInterval(() => {
-            this.elapsedSeconds++;
-            if (this.elapsedSeconds >= timeoutSeconds) {
-                clearInterval(this.processingTimer);
-                clearInterval(this.elapsedTimer);
-                this.stopJutlpRotation();
-                this.currentPhase = 'timeout';
-            }
-        }, 1000);
-
-        this.fetchJutlpArticles().then(() => this.startJutlpRotation());
+      this.fetchJutlpArticles().then(() => this.startJutlpRotation());
     },
 
     requestCancel() {
-        this.showCancelConfirm = true;
+      this.showCancelConfirm = true;
     },
 
-    confirmCancel() {
-        this.showCancelConfirm = false;
-        clearInterval(this.processingTimer);
-        clearInterval(this.elapsedTimer);
-        this.stopJutlpRotation();
-        this.selectedFile = null;
-        const input = document.getElementById('file-input');
-        if (input) input.value = '';
-        this.currentPhase = 'cancelled';
+    async confirmCancel() {
+      this.showCancelConfirm = false;
+      if (this.pollHandle) this.pollHandle.cancel(); // stop polling immediately client-side
+      if (this.sessionId) {
+        try {
+          await cancelJob(this.sessionId); // tell the backend to actually stop
+        } catch (err) {
+          console.warn('Cancel request failed:', err);
+          // Not much the user can do about this — the poll is already
+          // stopped client-side, so we proceed with the cancelled UI state
+          // regardless, per the Z-03 guarantee.
+        }
+      }
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
+      this.stopJutlpRotation();
+      this.selectedFile = null;
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
+      this.currentPhase = 'cancelled';
     },
 
     keepProcessing() {
-        this.showCancelConfirm = false;
+      this.showCancelConfirm = false;
     },
 
     resetToUpload() {
-        clearInterval(this.processingTimer);
-        clearInterval(this.elapsedTimer);
-        this.selectedFile = null;
-        this.hasDownloaded = false;
-        this.currentPhase = 'upload';
-        const input = document.getElementById('file-input');
-        if (input) input.value = '';
+      if (this.pollHandle) this.pollHandle.cancel();
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
+      this.selectedFile = null;
+      this.hasDownloaded = false;
+      this.sessionId = null;
+      this.currentPhase = 'upload';
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
     },
+
     goToUpgrade() {
-        this.currentPhase = 'upgrade';
+      this.currentPhase = 'upgrade';
     },
     payAndDownload() {
-        // No real payment — just advances state.
-        this.currentPhase = 'download';
+      // No real payment — just advances state. Still simulated; out of scope this week.
+      this.currentPhase = 'download';
     },
 
     downloadManuscript() {
-    // No real file  — just marks as downloaded.
-    this.hasDownloaded = true;
+      // Still simulated — out of scope this week (results/download wiring is next).
+      this.hasDownloaded = true;
     },
 
     get currentArticle() {
-        return this.jutlpArticles[this.jutlpArticleIndex];
+      return this.jutlpArticles[this.jutlpArticleIndex];
     },
 
-    //fetchJutlpArticles wont be used until backend is actually implemented since the currently simulated time of 10 seconds for processing is too short for to get article live from network
     async fetchJutlpArticles() {
-        try {
-            const res = await fetch('/api/jutlp-articles');
-            if (!res.ok) throw new Error('Article feed unavailable');
-                const data = await res.json();
-            if (Array.isArray(data.articles) && data.articles.length) {
-                this.jutlpArticles= data.articles;
-                this.jutlpArticleIndex = 0;
-            }
-        } catch (e) {
-            console.warn('JUTLP article feed unavailable:', e);
-            // keeps whatever's already in jutlpArticles (fallback on first load)
+      try {
+        const res = await fetch('/api/jutlp-articles');
+        if (!res.ok) throw new Error('Article feed unavailable');
+        const data = await res.json();
+        if (Array.isArray(data.articles) && data.articles.length) {
+          this.jutlpArticles = data.articles;
+          this.jutlpArticleIndex = 0;
         }
+      } catch (e) {
+        console.warn('JUTLP article feed unavailable:', e);
+      }
     },
 
     nextJutlpArticle() {
-        if (this.jutlpArticles.length <= 1) return;
-        let nextIndex = Math.floor(Math.random() * this.jutlpArticles.length);
-        if (nextIndex === this.jutlpArticleIndex) {
-            nextIndex = (nextIndex + 1) % this.jutlpArticles.length;
-        }
-        this.jutlpArticleIndex = nextIndex;
+      if (this.jutlpArticles.length <= 1) return;
+      let nextIndex = Math.floor(Math.random() * this.jutlpArticles.length);
+      if (nextIndex === this.jutlpArticleIndex) {
+        nextIndex = (nextIndex + 1) % this.jutlpArticles.length;
+      }
+      this.jutlpArticleIndex = nextIndex;
     },
 
     startJutlpRotation() {
-        this.stopJutlpRotation();
-        if (this.jutlpArticles.length > 1) {
-            this.jutlpRotateTimer = setInterval(() => this.nextJutlpArticle(), 150000);
-        }
+      this.stopJutlpRotation();
+      if (this.jutlpArticles.length > 1) {
+        this.jutlpRotateTimer = setInterval(() => this.nextJutlpArticle(), 150000);
+      }
     },
 
     stopJutlpRotation() {
-        if (this.jutlpRotateTimer) {
-            clearInterval(this.jutlpRotateTimer);
-            this.jutlpRotateTimer = null;
-        }
+      if (this.jutlpRotateTimer) {
+        clearInterval(this.jutlpRotateTimer);
+        this.jutlpRotateTimer = null;
+      }
     },
+
     retryProcessing() {
-        this.startProcessing();
+      // Retry needs a fresh upload — the old session's file is gone per the
+      // timeout contract, so send them back to Upload rather than pretending
+      // to reprocess the same (deleted) file.
+      this.resetToUpload();
     },
   }));
 });

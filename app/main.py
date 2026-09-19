@@ -2,6 +2,7 @@ import hmac
 import os
 import re
 import secrets
+import shutil
 import tempfile
 import threading
 import time
@@ -603,11 +604,11 @@ def upload():
         description: Bad request (no file or wrong format).
     """
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"error_code": "EMPTY", "message": "No file uploaded", "session_id": None}), 400
 
     file = request.files["file"]
     if not file.filename or not file.filename.endswith(".docx"):
-        return jsonify({"error": "Only .docx files are accepted"}), 400
+        return jsonify({"error_code": "BAD_TYPE", "message": "Only .docx files are accepted", "session_id": None}), 400
 
     tmp_dir = tempfile.mkdtemp()
     input_path = os.path.join(tmp_dir, file.filename)
@@ -622,14 +623,12 @@ def upload():
         total_words = None
     if total_words is not None and total_words > _max_word_count:
         return jsonify({
-            "error": (
-                f"Document is too long ({total_words:,} words). The maximum is "
-                f"{_max_word_count:,} words. Please shorten the manuscript and "
-                "try again."
-            ),
-            "word_count": total_words,
-            "max_word_count": _max_word_count,
-        }), 400
+            "error_code": "OVER_WORD_LIMIT",
+                "message": f"Document is too long ({total_words:,} words). The maximum is {_max_word_count:,} words.",
+                "session_id": None,
+                "word_count": total_words,
+                "max_word_count": _max_word_count,
+            }), 400
 
     output_filename = build_output_filename(input_path, tmp_dir)
     output_path = os.path.join(tmp_dir, output_filename)
@@ -642,6 +641,7 @@ def upload():
         "filename": file.filename,
         "output_filename": output_filename,
         "cancel_requested": False,
+        "tmp_dir": tmp_dir,
     }
 
     def _run():
@@ -760,6 +760,11 @@ def cancel_analysis(session_id):
             "stage": "cancelled",
             "cancel_requested": True,
         })
+        # Clean up any temp files immediately rather than waiting for the
+        # pipeline to notice cancel_requested at its next checkpoint.
+        tmp_dir = session.get("tmp_dir")
+        if tmp_dir and os.path.isdir(tmp_dir):
+            shutil.rmtree(tmp_dir, ignore_errors=True)
         return jsonify({"status": "cancelled"})
 
     return jsonify({"status": session.get("status", "unknown")})
