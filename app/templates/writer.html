@@ -152,11 +152,12 @@
       <!-- ======================== 3.RESULTS ======================== -->
       <div x-show="currentPhase === 'results'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
-        <h2 class="oe-headline" x-text="`${totalCorrections} corrections applied`"></h2>
+        <h2 class="oe-headline" x-text="Your manuscript has been processed"></h2>
+        <p class="oe-lede">Some formatting issues were found and changes have been made.</p>
 
         <div class="oe-results-columns">
           <div class="oe-results-col">
-            <div class="oe-results-col-header">INCLUDED IN YOUR FREE VERSION</div>
+            <div class="oe-results-col-header">CHANGES MADE AUTOMATICALLY</div>
             <template x-for="item in freeItems" :key="item.label">
               <div class="oe-results-row">
                 <span class="oe-results-marker">■</span>
@@ -164,54 +165,21 @@
                 <span class="oe-results-status" x-text="item.status"></span>
               </div>
             </template>
-            </div>
+            <p class="oe-results-note">Review the changes in your downloaded document.</p>
+            <button class="oe-btn-ghost" @click="goToDownload()">Continue to download</button>
+          </div>
 
-            <div class="oe-results-col muted">
-            <div class="oe-results-col-header">REQUIRES THE FULL VERSION</div>
-            <template x-for="item in lockedItems" :key="item.label">
+          <div class="oe-results-col muted">
+            <div class="oe-results-col-header">THINGS TO REVIEW</div>
+              <template x-for="item in reviewItems" :key="item.label">
                 <div class="oe-results-row">
                   <span class="oe-results-marker">□</span>
                   <span class="oe-results-label" x-text="item.label"></span>
-                  <span class="oe-results-status" x-text="item.status"></span>
+                  <span class="oe-results-status" x-text="REVIEW"></span>
                 </div>
-            </template>
-            <p class="oe-results-aside">Six references could not be verified. The full version tells you which.</p>
-            </div>
-        </div>
-
-        <div class="oe-submit-row left" style="margin-top: 40px;">
-          <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
-          <button class="oe-btn-primary" @click="goToUpgrade()" style="margin-left: 16px;">See the full version</button>
-        </div>
-      </div>
-
-      <!--UPGRADE -->
-      <div x-show="currentPhase === 'upgrade'" x-cloak>
-        <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
-        <h2 class="oe-headline">Choose your version</h2>
-
-        <div class="oe-upgrade-cards">
-          <div class="oe-upgrade-card">
-            <div class="oe-upgrade-card-label">FREE</div>
-            <h3 class="oe-upgrade-card-price">No charge</h3>
-            <p class="oe-upgrade-card-desc">
-                APA7 formatting corrections.<br>
-                Up to 15,000 words, 20 MB.<br>
-                Reference list left untouched.
-            </p>
-            <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
-          </div>
-
-          <div class="oe-upgrade-card selected">
-            <div class="oe-upgrade-card-label">FULL</div>
-            <h3 class="oe-upgrade-card-price">$12 per manuscript</h3>
-            <p class="oe-upgrade-card-desc">
-                Everything in Free, plus every reference and DOI checked against Crossref, with each problem named.
-            </p>
-            <button class="oe-btn-primary" @click="payAndDownload()">Pay and download</button>
+              </template>
           </div>
         </div>
-        <p class="oe-upgrade-footnote">One manuscript, one payment. No subscription. Your file is deleted after download.</p>
       </div>
 
       <!-- ======================== 4.DOWNLOAD ======================== -->

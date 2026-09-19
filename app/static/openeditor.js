@@ -31,15 +31,15 @@ document.addEventListener('alpine:init', () => {
     // ─── RESULTS state ───
     totalCorrections: 34,
     freeItems: [
-    { label: 'Heading hierarchy', status: '12 FIXED' },
-    { label: 'Line spacing and margins', status: '9 FIXED' },
-    { label: 'In-text citation format', status: '8 FIXED' },
-    { label: 'Title page and running head', status: '5 FIXED' }
+      { label: 'Heading hierarchy', status: '12 FIXED' },
+      { label: 'Line spacing and margins', status: '9 FIXED' },
+      { label: 'In-text citation format', status: '8 FIXED' },
+      { label: 'Title page and running head', status: '5 FIXED' }
     ],
-    lockedItems: [
-    { label: 'Reference list validated', status: '6 FLAGGED' },
-    { label: 'DOIs checked against Crossref', status: 'LOCKED' },
-    { label: 'Broken references reported', status: 'LOCKED' }
+    reviewItems: [
+      { label: '6 references could not be verified' },
+      { label: '2 DOIs did not resolve' },
+      { label: '1 table caption format unclear' }
     ],
     hasDownloaded: false,
 
@@ -202,8 +202,7 @@ document.addEventListener('alpine:init', () => {
     goToUpgrade() {
         this.currentPhase = 'upgrade';
     },
-    payAndDownload() {
-        // No real payment — just advances state.
+    goToDownload() {
         this.currentPhase = 'download';
     },
 
