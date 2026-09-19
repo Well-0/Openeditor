@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenEditor</title>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script> <!--HTMX-->>
-  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script> <!--Alpine.js -->>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script> <!--HTMX-->
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script> <!--Alpine.js -->
   <script src="{{ url_for('static', filename='openeditor.js') }}"></script> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -111,6 +111,7 @@
             <button class="oe-carousel-next" type="button" @click="nextJutlpArticle()">Next article</button>
           </div> 
         </div>
+        <!--Cancel processing confirmation-->
         <div class="oe-modal-overlay" x-show="showCancelConfirm" x-cloak>
           <div class="oe-modal">
             <div class="oe-eyebrow">CANCEL PROCESSING</div>
@@ -216,15 +217,16 @@
       <!-- ======================== 4.DOWNLOAD ======================== -->
       <div x-show="currentPhase === 'download'" x-cloak>
         <div class="oe-eyebrow">STEP 4 OF 4 &middot; DOWNLOAD</div>
-        <h2 class="oe-headline">Your manuscript is ready</h2>
+        <h2 class="oe-headline">Your document is ready</h2>
         <div class="oe-file-meta" x-text="downloadFileLabel"></div>
 
-        <p class="oe-lede">This is the only time you can download this file. Once you leave, your upload and the corrected version are both deleted from our servers.</p>
+        <p class="oe-lede">Your processed manuscript is ready to download.Your processed file is temporary and will not be saved as document history.</p>
 
         <div class="oe-submit-row left">
-          <button class="oe-btn-primary" @click="downloadManuscript()">Download manuscript</button>
+          <button class="oe-btn-primary" @click="downloadManuscript()">Download processed document</button>
         </div>
-        <button class="oe-link-muted" @click="resetToUpload()">Process another file</button>
+        <p class="oe-muted">Want to process another document?</p>
+        <button class="oe-btn-ghost" @click="resetToUpload()">Process another document</button>
       </div>
     </div>
   </div>

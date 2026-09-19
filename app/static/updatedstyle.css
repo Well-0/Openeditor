@@ -342,19 +342,11 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
   color: var(--ink3);
   margin-top: 24px;
 }
-.oe-link-muted {
-  display: block;
-  margin-top: 20px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--ink3);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-transform: uppercase;
+.oe-muted {
+  color: #737373;
+  font-size: 13px;
+  margin: 48px 0 12px;
 }
-.oe-link-muted:hover { color: var(--ink); }
 .oe-dz.has-error {
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%23b5362a' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat ;
 }
