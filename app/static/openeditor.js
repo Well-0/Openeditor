@@ -62,29 +62,48 @@ document.addEventListener('alpine:init', () => {
       this.applyFile(event.target.files[0]);
     },
 
-    onFileDropped(event) {
+    async onFileDropped(event) {
       const file = event.dataTransfer.files[0];
       this.applyFile(file);
       const input = document.getElementById('file-input');
-      if (input && event.dataTransfer.files.length) {
-        input.files = event.dataTransfer.files;
-      }
+      if (input && this.selectedFile) input.files = event.dataTransfer.files;
     },
 
-    applyFile(file) {
+    async applyFile(file) {
       if (!file) return;
-      const validExtensions = ['.docx', '.rtf'];
-      const fileName = file.name.toLowerCase();
-      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-      if (!isValid) {
-        this.fileError = 'This file type is not supported. Please upload a Microsoft Word document (.docx).'
         this.selectedFile = null;
-        return;
+        this.fileError = null;
+      
+      // Called whenever a file is rejected. Shows the error message and clears the hidden input so the rejected file isn't left sitting in it.
+      const fail = (message) => {
+        this.fileError = message;   // triggers the red error text and dropzone border
+        const input = document.getElementById('file-input');
+        // Empty the input so picking the same file again still fires a change event
+        if (input) input.value = '';
+      };
+      if (!file.name.toLowerCase().endsWith('.docx')) {
+        return fail('This file type is not supported. Please upload a Microsoft Word document (.docx).');
       }
-      this.fileError=null;
+      if (file.size > 20 * 1024 * 1024) {
+        return fail('This file is larger than 20 MB. Please upload a smaller file.');
+      }
+
+      const readable = await this.checkReadable(file);
+      if (readable === 'locked') {
+        return fail('This file is password protected. Remove the password and upload it again.');
+      }
+      if (readable === 'corrupt') {
+        return fail('This file could not be read. Please check it opens in Word and try again.');
+      }
+
       this.selectedFile = file;
     },
-
+    async checkReadable(file) {
+      const b = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      if (b[0] === 0x50 && b[1] === 0x4B) return 'ok';                                   // "PK": a real .docx (zip)
+      if (b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0) return 'locked'; // encrypted Word file
+      return 'corrupt';
+    },
     removeFile() {
       this.selectedFile = null;
       const input = document.getElementById('file-input');
@@ -102,89 +121,60 @@ document.addEventListener('alpine:init', () => {
     },
 
     stepNumber() {
-        if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
+      if (this.currentPhase === 'upload') return 1;
       if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled'||this.currentPhase === 'timeout') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
 
-    startChecking() {
-      if (!this.canSubmit) return;
-      this.currentPhase = 'checking';
-      this.runChecklist();
-    },
-
-    runChecklist() {
-      // Hardcoded rows + fixed delays — no real validation happening here.
-      this.checkRows = [
-        { label: 'File type', done: false, status: '.DOCX' },
-        { label: 'File size', done: false, status: '4.2 MB OF 20 MB' },
-        { label: 'Word count', done: false, status: 'COUNTING...' },
-        { label: 'Document readable', done: false, status: 'WAITING' }
-      ];
-
-      const delays = [500, 1100, 1700, 2300];
-      delays.forEach((delay, i) => {
-        setTimeout(() => {
-          this.checkRows[i].done = true;
-          if (this.checkRows[i].label === 'Word count') this.checkRows[i].status = 'COUNTED';
-          if (this.checkRows[i].label === 'Document readable') this.checkRows[i].status = 'READABLE';
-          if (i === this.checkRows.length - 1) {
-            setTimeout(() => this.startProcessing(), 400);
-          }
-        }, delay);
-      });
-    },
-
-
     startProcessing() {   
-        this.currentPhase = 'processing';
-        this.processingPercent = 0;
-        this.elapsedSeconds = 0;
+      this.currentPhase = 'processing';
+      this.processingPercent = 0;
+      this.elapsedSeconds = 0;
 
-        const totalDurationMs = 5000;
-        const timeoutSeconds = 600;
-        const stepMs = 100;
-        let elapsedMs = 0;
+      const totalDurationMs = 5000;
+      const timeoutSeconds = 600;
+      const stepMs = 100;
+      let elapsedMs = 0;
 
-        this.processingTimer = setInterval(() => {
-            elapsedMs += stepMs;
-            this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
-            if (elapsedMs >= totalDurationMs) {
+      this.processingTimer = setInterval(() => {
+        elapsedMs += stepMs;
+        this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
+        if (elapsedMs >= totalDurationMs) {
+          clearInterval(this.processingTimer);
+          clearInterval(this.elapsedTimer);
+          this.stopJutlpRotation();
+          this.currentPhase = 'results';
+        }
+      }, stepMs);
+      //fetch articles in background without blocking any timers
+
+      this.elapsedTimer = setInterval(() => {
+          this.elapsedSeconds++;
+          if (this.elapsedSeconds >= timeoutSeconds) {
             clearInterval(this.processingTimer);
             clearInterval(this.elapsedTimer);
             this.stopJutlpRotation();
-            this.currentPhase = 'results';
-            }
-        }, stepMs);
-        //fetch articles in background without blocking any timers
+            this.currentPhase = 'timeout';
+          }
+      }, 1000);
 
-        this.elapsedTimer = setInterval(() => {
-            this.elapsedSeconds++;
-            if (this.elapsedSeconds >= timeoutSeconds) {
-                clearInterval(this.processingTimer);
-                clearInterval(this.elapsedTimer);
-                this.stopJutlpRotation();
-                this.currentPhase = 'timeout';
-            }
-        }, 1000);
-
-        this.fetchJutlpArticles().then(() => this.startJutlpRotation());
+      this.fetchJutlpArticles().then(() => this.startJutlpRotation());
     },
 
     requestCancel() {
-        this.showCancelConfirm = true;
+      this.showCancelConfirm = true;
     },
 
     confirmCancel() {
-        this.showCancelConfirm = false;
-        clearInterval(this.processingTimer);
-        clearInterval(this.elapsedTimer);
-        this.stopJutlpRotation();
-        this.selectedFile = null;
-        const input = document.getElementById('file-input');
-        if (input) input.value = '';
-        this.currentPhase = 'cancelled';
+      this.showCancelConfirm = false;
+      clearInterval(this.processingTimer);
+      clearInterval(this.elapsedTimer);
+      this.stopJutlpRotation();
+      this.selectedFile = null;
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
+      this.currentPhase = 'cancelled';
     },
 
     keepProcessing() {
@@ -216,6 +206,7 @@ document.addEventListener('alpine:init', () => {
         return this.jutlpArticles[this.jutlpArticleIndex];
     },
 
+    //===========================Carousel functions===========================
     async fetchJutlpArticles() {
       const articles = await fetchCarouselArticles();
       if (articles.length) {

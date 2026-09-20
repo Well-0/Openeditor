@@ -62,29 +62,12 @@
         
         <p class="oe-error-text" x-show="fileError" x-text="fileError"></p>
         <div class="oe-submit-row">
-          <button class="oe-btn-primary" :disabled="!canSubmit" @click="startChecking()">
+          <button class="oe-btn-primary" :disabled="!canSubmit" @click="startProcessing()">
             Continue
           </button>
         </div>
       </div>
   
-      <!--============ Checking doc============ -->
-      <div x-show="currentPhase === 'checking'" x-cloak>
-        <div class="oe-eyebrow">STEP 1 OF 4 &middot; CHECKING YOUR FILE</div>
-        <h2 class="oe-headline">Checking your manuscript</h2>
-        <div class="oe-file-meta" x-text="`${selectedFile ? selectedFile.name.toUpperCase() : ''} · ${fileSizeLabel}`"></div>
-
-        <div class="oe-check-list">
-          <template x-for="row in checkRows" :key="row.label">
-            <div class="oe-check-row">
-                <span class="oe-check-marker" x-text="row.done ? '■' : '□'"></span>
-                <span class="oe-check-label" x-text="row.label"></span>
-                <span class="oe-check-status" x-text="row.status"></span>
-            </div>
-          </template>
-        </div>
-        <p class="oe-lede" style="margin-top: 40px;">Nothing is charged until you choose to upgrade.</p>
-      </div>
 
       <!-- ========================  2.PROCESSING STAGE ========================  -->
       <!--Processing-->
@@ -152,7 +135,7 @@
       <!-- ======================== 3.RESULTS ======================== -->
       <div x-show="currentPhase === 'results'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
-        <h2 class="oe-headline" x-text="Your manuscript has been processed"></h2>
+        <h2 class="oe-headline">"Your manuscript has been processed"></h2>
         <p class="oe-lede">Some formatting issues were found and changes have been made.</p>
 
         <div class="oe-results-columns">
@@ -175,7 +158,7 @@
                 <div class="oe-results-row">
                   <span class="oe-results-marker">□</span>
                   <span class="oe-results-label" x-text="item.label"></span>
-                  <span class="oe-results-status" x-text="REVIEW"></span>
+                  <span class="oe-results-status">REVIEW"></span>
                 </div>
               </template>
           </div>
@@ -188,7 +171,7 @@
         <h2 class="oe-headline">Your document is ready</h2>
         <div class="oe-file-meta" x-text="downloadFileLabel"></div>
 
-        <p class="oe-lede">Your processed manuscript is ready to download.Your processed file is temporary and will not be saved as document history.</p>
+        <p class="oe-lede">Your processed manuscript is ready to download. Your processed file is temporary and will not be saved as document history.</p>
 
         <div class="oe-submit-row left">
           <button class="oe-btn-primary" @click="downloadManuscript()">Download processed document</button>
