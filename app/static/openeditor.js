@@ -1,3 +1,4 @@
+import { uploadManuscript, pollUntilDone, cancelJob, fetchCarouselArticles, downloadUrl, CAROUSEL_ENABLED } from './api.js';
 document.addEventListener('alpine:init', () => {
   Alpine.data('openEditorApp', () => ({
     // ─── UPLOAD state ───
@@ -17,7 +18,7 @@ document.addEventListener('alpine:init', () => {
     elapsedSeconds: 0,
     processingTimer: null,
     elapsedTimer: null,
-    carouselEnabled: true,
+    carouselEnabled: CAROUSEL_ENABLED,
     jutlpArticles: [{
     title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
     author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
@@ -27,19 +28,19 @@ document.addEventListener('alpine:init', () => {
     jutlpArticleIndex: 0,
     jutlpRotateTimer: null,
     showCancelConfirm: false,
-
+    showLeaveConfirm: false,
     // ─── RESULTS state ───
     totalCorrections: 34,
     freeItems: [
-    { label: 'Heading hierarchy', status: '12 FIXED' },
-    { label: 'Line spacing and margins', status: '9 FIXED' },
-    { label: 'In-text citation format', status: '8 FIXED' },
-    { label: 'Title page and running head', status: '5 FIXED' }
+      { label: 'Heading hierarchy', status: '12 FIXED' },
+      { label: 'Line spacing and margins', status: '9 FIXED' },
+      { label: 'In-text citation format', status: '8 FIXED' },
+      { label: 'Title page and running head', status: '5 FIXED' }
     ],
-    lockedItems: [
-    { label: 'Reference list validated', status: '6 FLAGGED' },
-    { label: 'DOIs checked against Crossref', status: 'LOCKED' },
-    { label: 'Broken references reported', status: 'LOCKED' }
+    reviewItems: [
+      { label: '6 references could not be verified' },
+      { label: '2 DOIs did not resolve' },
+      { label: '1 table caption format unclear' }
     ],
     hasDownloaded: false,
 
@@ -61,29 +62,48 @@ document.addEventListener('alpine:init', () => {
       this.applyFile(event.target.files[0]);
     },
 
-    onFileDropped(event) {
+    async onFileDropped(event) {
       const file = event.dataTransfer.files[0];
       this.applyFile(file);
       const input = document.getElementById('file-input');
-      if (input && event.dataTransfer.files.length) {
-        input.files = event.dataTransfer.files;
-      }
+      if (input && this.selectedFile) input.files = event.dataTransfer.files;
     },
 
-    applyFile(file) {
+    async applyFile(file) {
       if (!file) return;
-      const validExtensions = ['.docx', '.rtf'];
-      const fileName = file.name.toLowerCase();
-      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-      if (!isValid) {
-        this.fileError = 'This file type is not supported. Please upload a Microsoft Word document (.docx).'
         this.selectedFile = null;
-        return;
+        this.fileError = null;
+      
+      // Called whenever a file is rejected. Shows the error message and clears the hidden input so the rejected file isn't left sitting in it.
+      const fail = (message) => {
+        this.fileError = message;   // triggers the red error text and dropzone border
+        const input = document.getElementById('file-input');
+        // Empty the input so picking the same file again still fires a change event
+        if (input) input.value = '';
+      };
+      if (!file.name.toLowerCase().endsWith('.docx')) {
+        return fail('This file type is not supported. Please upload a Microsoft Word document (.docx).');
       }
-      this.fileError=null;
+      if (file.size > 20 * 1024 * 1024) {
+        return fail('This file is larger than 20 MB. Please upload a smaller file.');
+      }
+
+      const readable = await this.checkReadable(file);
+      if (readable === 'locked') {
+        return fail('This file is password protected. Remove the password and upload it again.');
+      }
+      if (readable === 'corrupt') {
+        return fail('This file could not be read. Please check it opens in Word and try again.');
+      }
+
       this.selectedFile = file;
     },
-
+    async checkReadable(file) {
+      const b = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      if (b[0] === 0x50 && b[1] === 0x4B) return 'ok';                                   // "PK": a real .docx (zip)
+      if (b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0) return 'locked'; // encrypted Word file
+      return 'corrupt';
+    },
     removeFile() {
       this.selectedFile = null;
       const input = document.getElementById('file-input');
@@ -101,89 +121,60 @@ document.addEventListener('alpine:init', () => {
     },
 
     stepNumber() {
-        if (this.currentPhase === 'upload'|| this.currentPhase === 'checking') return 1;
+      if (this.currentPhase === 'upload') return 1;
       if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled'||this.currentPhase === 'timeout') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
 
-    startChecking() {
-      if (!this.canSubmit) return;
-      this.currentPhase = 'checking';
-      this.runChecklist();
-    },
-
-    runChecklist() {
-      // Hardcoded rows + fixed delays — no real validation happening here.
-      this.checkRows = [
-        { label: 'File type', done: false, status: '.DOCX' },
-        { label: 'File size', done: false, status: '4.2 MB OF 20 MB' },
-        { label: 'Word count', done: false, status: 'COUNTING...' },
-        { label: 'Document readable', done: false, status: 'WAITING' }
-      ];
-
-      const delays = [500, 1100, 1700, 2300];
-      delays.forEach((delay, i) => {
-        setTimeout(() => {
-          this.checkRows[i].done = true;
-          if (this.checkRows[i].label === 'Word count') this.checkRows[i].status = 'COUNTED';
-          if (this.checkRows[i].label === 'Document readable') this.checkRows[i].status = 'READABLE';
-          if (i === this.checkRows.length - 1) {
-            setTimeout(() => this.startProcessing(), 400);
-          }
-        }, delay);
-      });
-    },
-
-
     startProcessing() {   
-        this.currentPhase = 'processing';
-        this.processingPercent = 0;
-        this.elapsedSeconds = 0;
+      this.currentPhase = 'processing';
+      this.processingPercent = 0;
+      this.elapsedSeconds = 0;
 
-        const totalDurationMs = 5000;
-        const timeoutSeconds = 600;
-        const stepMs = 100;
-        let elapsedMs = 0;
+      const totalDurationMs = 5000;
+      const timeoutSeconds = 600;
+      const stepMs = 100;
+      let elapsedMs = 0;
 
-        this.processingTimer = setInterval(() => {
-            elapsedMs += stepMs;
-            this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
-            if (elapsedMs >= totalDurationMs) {
+      this.processingTimer = setInterval(() => {
+        elapsedMs += stepMs;
+        this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
+        if (elapsedMs >= totalDurationMs) {
+          clearInterval(this.processingTimer);
+          clearInterval(this.elapsedTimer);
+          this.stopJutlpRotation();
+          this.currentPhase = 'results';
+        }
+      }, stepMs);
+      //fetch articles in background without blocking any timers
+
+      this.elapsedTimer = setInterval(() => {
+          this.elapsedSeconds++;
+          if (this.elapsedSeconds >= timeoutSeconds) {
             clearInterval(this.processingTimer);
             clearInterval(this.elapsedTimer);
             this.stopJutlpRotation();
-            this.currentPhase = 'results';
-            }
-        }, stepMs);
-        //fetch articles in background without blocking any timers
+            this.currentPhase = 'timeout';
+          }
+      }, 1000);
 
-        this.elapsedTimer = setInterval(() => {
-            this.elapsedSeconds++;
-            if (this.elapsedSeconds >= timeoutSeconds) {
-                clearInterval(this.processingTimer);
-                clearInterval(this.elapsedTimer);
-                this.stopJutlpRotation();
-                this.currentPhase = 'timeout';
-            }
-        }, 1000);
-
-        this.fetchJutlpArticles().then(() => this.startJutlpRotation());
+      this.fetchJutlpArticles().then(() => this.startJutlpRotation());
     },
 
     requestCancel() {
-        this.showCancelConfirm = true;
+      this.showCancelConfirm = true;
     },
 
     confirmCancel() {
-        this.showCancelConfirm = false;
-        clearInterval(this.processingTimer);
-        clearInterval(this.elapsedTimer);
-        this.stopJutlpRotation();
-        this.selectedFile = null;
-        const input = document.getElementById('file-input');
-        if (input) input.value = '';
-        this.currentPhase = 'cancelled';
+      this.showCancelConfirm = false;
+      clearInterval(this.processingTimer);
+      clearInterval(this.elapsedTimer);
+      this.stopJutlpRotation();
+      this.selectedFile = null;
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
+      this.currentPhase = 'cancelled';
     },
 
     keepProcessing() {
@@ -202,8 +193,7 @@ document.addEventListener('alpine:init', () => {
     goToUpgrade() {
         this.currentPhase = 'upgrade';
     },
-    payAndDownload() {
-        // No real payment — just advances state.
+    goToDownload() {
         this.currentPhase = 'download';
     },
 
@@ -216,20 +206,13 @@ document.addEventListener('alpine:init', () => {
         return this.jutlpArticles[this.jutlpArticleIndex];
     },
 
-    //fetchJutlpArticles wont be used until backend is actually implemented since the currently simulated time of 10 seconds for processing is too short for to get article live from network
+    //===========================Carousel functions===========================
     async fetchJutlpArticles() {
-        try {
-            const res = await fetch('/api/jutlp-articles');
-            if (!res.ok) throw new Error('Article feed unavailable');
-                const data = await res.json();
-            if (Array.isArray(data.articles) && data.articles.length) {
-                this.jutlpArticles= data.articles;
-                this.jutlpArticleIndex = 0;
-            }
-        } catch (e) {
-            console.warn('JUTLP article feed unavailable:', e);
-            // keeps whatever's already in jutlpArticles (fallback on first load)
-        }
+      const articles = await fetchCarouselArticles();
+      if (articles.length) {
+        this.jutlpArticles = articles;
+        this.jutlpArticleIndex = 0;
+      }
     },
 
     nextJutlpArticle() {
@@ -256,6 +239,24 @@ document.addEventListener('alpine:init', () => {
     },
     retryProcessing() {
         this.startProcessing();
+    },
+
+    requestProcessAnother() {
+      if (this.hasDownloaded) {
+        this.resetToUpload();
+      } else {
+        this.showLeaveConfirm = true;
+      }
+    },
+
+    downloadFirst() {
+      this.showLeaveConfirm = false;
+      this.downloadManuscript();
+    },
+
+    continueWithoutDownloading() {
+      this.showLeaveConfirm = false;
+      this.resetToUpload();
     },
   }));
 });
