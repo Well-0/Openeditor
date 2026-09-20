@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenEditor</title>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script> <!--HTMX-->
+  <script type="module" src="{{ url_for('static', filename='openeditor.js') }}"></script> 
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script> <!--Alpine.js -->
-  <script src="{{ url_for('static', filename='openeditor.js') }}"></script> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 <body>
 
 <div x-data="openEditorApp()" x-init="init()">
- 
+
   <div class="oe-frame-wrapper">
     <div class="oe-frame">
       <div class="oe-signature">
@@ -111,7 +111,7 @@
             <button class="oe-carousel-next" type="button" @click="nextJutlpArticle()">Next article</button>
           </div> 
         </div>
-        <!--Cancel processing confirmation-->
+        <!--Cancel processing guard-->
         <div class="oe-modal-overlay" x-show="showCancelConfirm" x-cloak>
           <div class="oe-modal">
             <div class="oe-eyebrow">CANCEL PROCESSING</div>
@@ -194,7 +194,20 @@
           <button class="oe-btn-primary" @click="downloadManuscript()">Download processed document</button>
         </div>
         <p class="oe-muted">Want to process another document?</p>
-        <button class="oe-btn-ghost" @click="resetToUpload()">Process another document</button>
+
+        <!--Process another document guard-->
+        <button class="oe-btn-ghost" @click="requestProcessAnother()">Process another document</button>
+        <div class="oe-modal-overlay" x-show="showLeaveConfirm" x-cloak>
+          <div class="oe-modal">
+            <div class="oe-eyebrow">DOWNLOAD WARNING</div>
+            <h2 class="oe-headline">Have you downloaded your document?</h2>
+            <p class="oe-lede">Your processed file will not be saved when you leave this page.</p>
+            <div class="oe-modal-actions">
+              <button class="oe-btn-primary" @click="downloadFirst()">Download first</button>
+              <button class="oe-btn-ghost" @click="continueWithoutDownloading()">Continue without downloading</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

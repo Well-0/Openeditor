@@ -1,3 +1,4 @@
+import { uploadManuscript, pollUntilDone, cancelJob, fetchCarouselArticles, downloadUrl, CAROUSEL_ENABLED } from './api.js';
 document.addEventListener('alpine:init', () => {
   Alpine.data('openEditorApp', () => ({
     // ─── UPLOAD state ───
@@ -17,7 +18,7 @@ document.addEventListener('alpine:init', () => {
     elapsedSeconds: 0,
     processingTimer: null,
     elapsedTimer: null,
-    carouselEnabled: true,
+    carouselEnabled: CAROUSEL_ENABLED,
     jutlpArticles: [{
     title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
     author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
@@ -27,7 +28,7 @@ document.addEventListener('alpine:init', () => {
     jutlpArticleIndex: 0,
     jutlpRotateTimer: null,
     showCancelConfirm: false,
-
+    showLeaveConfirm: false,
     // ─── RESULTS state ───
     totalCorrections: 34,
     freeItems: [
@@ -215,20 +216,12 @@ document.addEventListener('alpine:init', () => {
         return this.jutlpArticles[this.jutlpArticleIndex];
     },
 
-    //fetchJutlpArticles wont be used until backend is actually implemented since the currently simulated time of 10 seconds for processing is too short for to get article live from network
     async fetchJutlpArticles() {
-        try {
-            const res = await fetch('/api/jutlp-articles');
-            if (!res.ok) throw new Error('Article feed unavailable');
-                const data = await res.json();
-            if (Array.isArray(data.articles) && data.articles.length) {
-                this.jutlpArticles= data.articles;
-                this.jutlpArticleIndex = 0;
-            }
-        } catch (e) {
-            console.warn('JUTLP article feed unavailable:', e);
-            // keeps whatever's already in jutlpArticles (fallback on first load)
-        }
+      const articles = await fetchCarouselArticles();
+      if (articles.length) {
+        this.jutlpArticles = articles;
+        this.jutlpArticleIndex = 0;
+      }
     },
 
     nextJutlpArticle() {
@@ -255,6 +248,24 @@ document.addEventListener('alpine:init', () => {
     },
     retryProcessing() {
         this.startProcessing();
+    },
+
+    requestProcessAnother() {
+      if (this.hasDownloaded) {
+        this.resetToUpload();
+      } else {
+        this.showLeaveConfirm = true;
+      }
+    },
+
+    downloadFirst() {
+      this.showLeaveConfirm = false;
+      this.downloadManuscript();
+    },
+
+    continueWithoutDownloading() {
+      this.showLeaveConfirm = false;
+      this.resetToUpload();
     },
   }));
 });
