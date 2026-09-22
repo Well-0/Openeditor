@@ -1,27 +1,19 @@
-import { uploadManuscript, pollUntilDone, cancelJob } from './api.js';
+import { uploadManuscript, pollUntilDone, cancelJob, fetchCarouselArticles, downloadUrl, CAROUSEL_ENABLED } from './api.js';
 
 document.addEventListener('alpine:init', () => {
   Alpine.data('openEditorApp', () => ({
-    // ─── UPLOAD state ───
     currentPhase: 'upload',
     selectedFile: null,
     isDragOver: false,
     fileError: null,
-    sessionId: null,          // NEW — real session id from /api/upload
-    uploadError: null,        // NEW — surfaces real backend upload errors
+    sessionId: null,
+    uploadError: null,
 
-    // ─── PROCESSING state ───
-    checkRows: [
-      { label: 'File type', done: false, status: 'PENDING' },
-      { label: 'File size', done: false, status: 'PENDING' },
-      { label: 'Word count', done: false, status: 'WAITING' },
-      { label: 'Document readable', done: false, status: 'WAITING' }
-    ],
     processingPercent: 0,
     elapsedSeconds: 0,
     elapsedTimer: null,
-    pollHandle: null,         // NEW — holds { promise, cancel } from pollUntilDone
-    carouselEnabled: true,
+    pollHandle: null,
+    carouselEnabled: CAROUSEL_ENABLED,
     jutlpArticles: [{
       title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
       author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
@@ -31,8 +23,9 @@ document.addEventListener('alpine:init', () => {
     jutlpArticleIndex: 0,
     jutlpRotateTimer: null,
     showCancelConfirm: false,
+    showLeaveConfirm: false,
 
-    // ─── RESULTS state (still simulated — out of scope for this week) ───
+    // ─── RESULTS state ───
     totalCorrections: 34,
     freeItems: [
       { label: 'Heading hierarchy', status: '12 FIXED' },
@@ -40,13 +33,13 @@ document.addEventListener('alpine:init', () => {
       { label: 'In-text citation format', status: '8 FIXED' },
       { label: 'Title page and running head', status: '5 FIXED' }
     ],
-    lockedItems: [
-      { label: 'Reference list validated', status: '6 FLAGGED' },
-      { label: 'DOIs checked against Crossref', status: 'LOCKED' },
-      { label: 'Broken references reported', status: 'LOCKED' }
+    reviewItems: [
+      { label: '6 references could not be verified' },
+      { label: '2 DOIs did not resolve' },
+      { label: '1 table caption format unclear' }
     ],
     hasDownloaded: false,
-    resultsPayload: null,     // NEW — will hold the real results once wired up
+    resultsPayload: null,
 
     get fileSizeLabel() {
       if (!this.selectedFile) return '';
@@ -66,27 +59,47 @@ document.addEventListener('alpine:init', () => {
       this.applyFile(event.target.files[0]);
     },
 
-    onFileDropped(event) {
+    async onFileDropped(event) {
       const file = event.dataTransfer.files[0];
-      this.applyFile(file);
+      await this.applyFile(file);
       const input = document.getElementById('file-input');
-      if (input && event.dataTransfer.files.length) {
-        input.files = event.dataTransfer.files;
-      }
+      if (input && this.selectedFile) input.files = event.dataTransfer.files;
     },
 
-    applyFile(file) {
+    async applyFile(file) {
       if (!file) return;
-      const validExtensions = ['.docx', '.rtf'];
-      const fileName = file.name.toLowerCase();
-      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-      if (!isValid) {
-        this.fileError = 'This file type is not supported. Please upload a Microsoft Word document (.docx).';
-        this.selectedFile = null;
-        return;
-      }
+      this.selectedFile = null;
       this.fileError = null;
+
+      const fail = (message) => {
+        this.fileError = message;
+        const input = document.getElementById('file-input');
+        if (input) input.value = '';
+      };
+
+      if (!file.name.toLowerCase().endsWith('.docx')) {
+        return fail('This file type is not supported. Please upload a Microsoft Word document (.docx).');
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        return fail('This file is larger than 20 MB. Please upload a smaller file.');
+      }
+
+      const readable = await this.checkReadable(file);
+      if (readable === 'locked') {
+        return fail('This file is password protected. Remove the password and upload it again.');
+      }
+      if (readable === 'corrupt') {
+        return fail('This file could not be read. Please check it opens in Word and try again.');
+      }
+
       this.selectedFile = file;
+    },
+
+    async checkReadable(file) {
+      const b = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      if (b[0] === 0x50 && b[1] === 0x4B) return 'ok';
+      if (b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0) return 'locked';
+      return 'corrupt';
     },
 
     removeFile() {
@@ -106,58 +119,41 @@ document.addEventListener('alpine:init', () => {
     },
 
     stepNumber() {
-      if (this.currentPhase === 'upload' || this.currentPhase === 'checking') return 1;
+      if (this.currentPhase === 'upload') return 1;
       if (this.currentPhase === 'processing' || this.currentPhase === 'cancelled' || this.currentPhase === 'timeout') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
 
-    // ─── REAL upload + processing (replaces the old simulated flow) ───
-
-    async startChecking() {
+    // ─── REAL upload + processing ───
+    async startProcessing() {
       if (!this.canSubmit) return;
-      this.currentPhase = 'checking';
-      this.uploadError = null;
-
-      // "Checking" stays a quick client-side visual step (per G-01: checking
-      // is not a separate endpoint) — then we actually hit the real API.
-      this.checkRows = [
-        { label: 'File type', done: true, status: '.DOCX' },
-        { label: 'File size', done: true, status: this.fileSizeLabel },
-        { label: 'Word count', done: false, status: 'UPLOADING...' },
-        { label: 'Document readable', done: false, status: 'WAITING' }
-      ];
-
-      try {
-        const { session_id } = await uploadManuscript(this.selectedFile);
-        this.sessionId = session_id;
-        this.checkRows[2].done = true;
-        this.checkRows[2].status = 'SUBMITTED';
-        this.checkRows[3].done = true;
-        this.checkRows[3].status = 'PROCESSING';
-        this.startProcessing();
-      } catch (err) {
-        // Real backend rejected the upload — surface it and go back to upload.
-        this.uploadError = err.message || 'Upload failed. Please try again.';
-        this.fileError = this.uploadError;
-        this.currentPhase = 'upload';
-      }
-    },
-
-    startProcessing() {
       this.currentPhase = 'processing';
       this.processingPercent = 0;
       this.elapsedSeconds = 0;
+      this.uploadError = null;
 
-      // Real elapsed-time display, ticking independently of the poll interval.
       this.elapsedTimer = setInterval(() => {
         this.elapsedSeconds++;
       }, 1000);
 
+      this.fetchJutlpArticles().then(() => this.startJutlpRotation());
+
+      try {
+        const { session_id } = await uploadManuscript(this.selectedFile);
+        this.sessionId = session_id;
+      } catch (err) {
+        clearInterval(this.elapsedTimer);
+        this.stopJutlpRotation();
+        this.uploadError = err.message || 'Upload failed. Please try again.';
+        this.fileError = this.uploadError;
+        this.currentPhase = 'upload';
+        return;
+      }
+
       this.pollHandle = pollUntilDone(
         this.sessionId,
-        (payload, step) => {
-          // Real progress from the backend's 202 responses.
+        (payload) => {
           this.processingPercent = payload.progress ?? this.processingPercent;
         }
       );
@@ -177,15 +173,10 @@ document.addEventListener('alpine:init', () => {
           } else if (err.errorCode === 'TIMEOUT') {
             this.currentPhase = 'timeout';
           } else {
-            // Pipeline error / session not found — no dedicated screen yet,
-            // fall back to timeout screen's messaging for now. Worth a real
-            // "error" phase in a future task.
             console.error('Processing failed:', err);
             this.currentPhase = 'timeout';
           }
         });
-
-      this.fetchJutlpArticles().then(() => this.startJutlpRotation());
     },
 
     requestCancel() {
@@ -194,15 +185,12 @@ document.addEventListener('alpine:init', () => {
 
     async confirmCancel() {
       this.showCancelConfirm = false;
-      if (this.pollHandle) this.pollHandle.cancel(); // stop polling immediately client-side
+      if (this.pollHandle) this.pollHandle.cancel();
       if (this.sessionId) {
         try {
-          await cancelJob(this.sessionId); // tell the backend to actually stop
+          await cancelJob(this.sessionId);
         } catch (err) {
           console.warn('Cancel request failed:', err);
-          // Not much the user can do about this — the poll is already
-          // stopped client-side, so we proceed with the cancelled UI state
-          // regardless, per the Z-03 guarantee.
         }
       }
       if (this.elapsedTimer) clearInterval(this.elapsedTimer);
@@ -231,13 +219,14 @@ document.addEventListener('alpine:init', () => {
     goToUpgrade() {
       this.currentPhase = 'upgrade';
     },
-    payAndDownload() {
-      // No real payment — just advances state. Still simulated; out of scope this week.
+    goToDownload() {
       this.currentPhase = 'download';
     },
 
     downloadManuscript() {
-      // Still simulated — out of scope this week (results/download wiring is next).
+      if (this.sessionId) {
+        window.location.href = downloadUrl(this.sessionId);
+      }
       this.hasDownloaded = true;
     },
 
@@ -246,16 +235,10 @@ document.addEventListener('alpine:init', () => {
     },
 
     async fetchJutlpArticles() {
-      try {
-        const res = await fetch('/api/jutlp-articles');
-        if (!res.ok) throw new Error('Article feed unavailable');
-        const data = await res.json();
-        if (Array.isArray(data.articles) && data.articles.length) {
-          this.jutlpArticles = data.articles;
-          this.jutlpArticleIndex = 0;
-        }
-      } catch (e) {
-        console.warn('JUTLP article feed unavailable:', e);
+      const articles = await fetchCarouselArticles();
+      if (articles.length) {
+        this.jutlpArticles = articles;
+        this.jutlpArticleIndex = 0;
       }
     },
 
@@ -283,9 +266,24 @@ document.addEventListener('alpine:init', () => {
     },
 
     retryProcessing() {
-      // Retry needs a fresh upload — the old session's file is gone per the
-      // timeout contract, so send them back to Upload rather than pretending
-      // to reprocess the same (deleted) file.
+      this.resetToUpload();
+    },
+
+    requestProcessAnother() {
+      if (this.hasDownloaded) {
+        this.resetToUpload();
+      } else {
+        this.showLeaveConfirm = true;
+      }
+    },
+
+    downloadFirst() {
+      this.showLeaveConfirm = false;
+      this.downloadManuscript();
+    },
+
+    continueWithoutDownloading() {
+      this.showLeaveConfirm = false;
       this.resetToUpload();
     },
   }));

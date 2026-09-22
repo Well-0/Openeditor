@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenEditor</title>
+
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
   <script type="module" src="{{ url_for('static', filename='openeditor.js') }}"></script>
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -15,7 +17,7 @@
 <body>
 
 <div x-data="openEditorApp()" x-init="init()">
- 
+
   <div class="oe-frame-wrapper">
     <div class="oe-frame">
       <div class="oe-signature">
@@ -62,29 +64,12 @@
         
         <p class="oe-error-text" x-show="fileError" x-text="fileError"></p>
         <div class="oe-submit-row">
-          <button class="oe-btn-primary" :disabled="!canSubmit" @click="startChecking()">
+          <button class="oe-btn-primary" :disabled="!canSubmit" @click="startProcessing()">
             Continue
           </button>
         </div>
       </div>
   
-      <!--============ Checking doc============ -->
-      <div x-show="currentPhase === 'checking'" x-cloak>
-        <div class="oe-eyebrow">STEP 1 OF 4 &middot; CHECKING YOUR FILE</div>
-        <h2 class="oe-headline">Checking your manuscript</h2>
-        <div class="oe-file-meta" x-text="`${selectedFile ? selectedFile.name.toUpperCase() : ''} · ${fileSizeLabel}`"></div>
-
-        <div class="oe-check-list">
-          <template x-for="row in checkRows" :key="row.label">
-            <div class="oe-check-row">
-                <span class="oe-check-marker" x-text="row.done ? '■' : '□'"></span>
-                <span class="oe-check-label" x-text="row.label"></span>
-                <span class="oe-check-status" x-text="row.status"></span>
-            </div>
-          </template>
-        </div>
-        <p class="oe-lede" style="margin-top: 40px;">Nothing is charged until you choose to upgrade.</p>
-      </div>
 
       <!-- ========================  2.PROCESSING STAGE ========================  -->
       <!--Processing-->
@@ -111,6 +96,7 @@
             <button class="oe-carousel-next" type="button" @click="nextJutlpArticle()">Next article</button>
           </div> 
         </div>
+        <!--Cancel processing guard-->
         <div class="oe-modal-overlay" x-show="showCancelConfirm" x-cloak>
           <div class="oe-modal">
             <div class="oe-eyebrow">CANCEL PROCESSING</div>
@@ -151,11 +137,12 @@
       <!-- ======================== 3.RESULTS ======================== -->
       <div x-show="currentPhase === 'results'" x-cloak>
         <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
-        <h2 class="oe-headline" x-text="`${totalCorrections} corrections applied`"></h2>
+        <h2 class="oe-headline">"Your manuscript has been processed"></h2>
+        <p class="oe-lede">Some formatting issues were found and changes have been made.</p>
 
         <div class="oe-results-columns">
           <div class="oe-results-col">
-            <div class="oe-results-col-header">INCLUDED IN YOUR FREE VERSION</div>
+            <div class="oe-results-col-header">CHANGES MADE AUTOMATICALLY</div>
             <template x-for="item in freeItems" :key="item.label">
               <div class="oe-results-row">
                 <span class="oe-results-marker">■</span>
@@ -163,68 +150,49 @@
                 <span class="oe-results-status" x-text="item.status"></span>
               </div>
             </template>
-            </div>
+            <p class="oe-results-note">Review the changes in your downloaded document.</p>
+            <button class="oe-btn-ghost" @click="goToDownload()">Continue to download</button>
+          </div>
 
-            <div class="oe-results-col muted">
-            <div class="oe-results-col-header">REQUIRES THE FULL VERSION</div>
-            <template x-for="item in lockedItems" :key="item.label">
+          <div class="oe-results-col muted">
+            <div class="oe-results-col-header">THINGS TO REVIEW</div>
+              <template x-for="item in reviewItems" :key="item.label">
                 <div class="oe-results-row">
                   <span class="oe-results-marker">□</span>
                   <span class="oe-results-label" x-text="item.label"></span>
-                  <span class="oe-results-status" x-text="item.status"></span>
+                  <span class="oe-results-status">REVIEW"></span>
                 </div>
-            </template>
-            <p class="oe-results-aside">Six references could not be verified. The full version tells you which.</p>
-            </div>
-        </div>
-
-        <div class="oe-submit-row left" style="margin-top: 40px;">
-          <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
-          <button class="oe-btn-primary" @click="goToUpgrade()" style="margin-left: 16px;">See the full version</button>
-        </div>
-      </div>
-
-      <!--UPGRADE -->
-      <div x-show="currentPhase === 'upgrade'" x-cloak>
-        <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
-        <h2 class="oe-headline">Choose your version</h2>
-
-        <div class="oe-upgrade-cards">
-          <div class="oe-upgrade-card">
-            <div class="oe-upgrade-card-label">FREE</div>
-            <h3 class="oe-upgrade-card-price">No charge</h3>
-            <p class="oe-upgrade-card-desc">
-                APA7 formatting corrections.<br>
-                Up to 15,000 words, 20 MB.<br>
-                Reference list left untouched.
-            </p>
-            <button class="oe-btn-ghost" @click="downloadFreeVersion()">Download free version</button>
-          </div>
-
-          <div class="oe-upgrade-card selected">
-            <div class="oe-upgrade-card-label">FULL</div>
-            <h3 class="oe-upgrade-card-price">$12 per manuscript</h3>
-            <p class="oe-upgrade-card-desc">
-                Everything in Free, plus every reference and DOI checked against Crossref, with each problem named.
-            </p>
-            <button class="oe-btn-primary" @click="payAndDownload()">Pay and download</button>
+              </template>
           </div>
         </div>
-        <p class="oe-upgrade-footnote">One manuscript, one payment. No subscription. Your file is deleted after download.</p>
       </div>
 
       <!-- ======================== 4.DOWNLOAD ======================== -->
       <div x-show="currentPhase === 'download'" x-cloak>
         <div class="oe-eyebrow">STEP 4 OF 4 &middot; DOWNLOAD</div>
-        <h2 class="oe-headline">Your manuscript is ready</h2>
+        <h2 class="oe-headline">Your document is ready</h2>
         <div class="oe-file-meta" x-text="downloadFileLabel"></div>
 
-        <p class="oe-lede">This is the only time you can download this file. Once you leave, your upload and the corrected version are both deleted from our servers.</p>
+        <p class="oe-lede">Your processed manuscript is ready to download. Your processed file is temporary and will not be saved as document history.</p>
 
         <div class="oe-submit-row left">
-          <button class="oe-btn-primary" @click="downloadManuscript()">Download manuscript</button>
+          <button class="oe-btn-primary" @click="downloadManuscript()">Download processed document</button>
         </div>
-        <button class="oe-link-muted" @click="resetToUpload()">Process another file</button>
+        <p class="oe-muted">Want to process another document?</p>
+
+        <!--Process another document guard-->
+        <button class="oe-btn-ghost" @click="requestProcessAnother()">Process another document</button>
+        <div class="oe-modal-overlay" x-show="showLeaveConfirm" x-cloak>
+          <div class="oe-modal">
+            <div class="oe-eyebrow">DOWNLOAD WARNING</div>
+            <h2 class="oe-headline">Have you downloaded your document?</h2>
+            <p class="oe-lede">Your processed file will not be saved when you leave this page.</p>
+            <div class="oe-modal-actions">
+              <button class="oe-btn-primary" @click="downloadFirst()">Download first</button>
+              <button class="oe-btn-ghost" @click="continueWithoutDownloading()">Continue without downloading</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

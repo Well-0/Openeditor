@@ -1,3 +1,4 @@
+[x-cloak] { display: none !important; }
 .oapa-logo {
   height: 32px;
   width: auto;
@@ -262,6 +263,8 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
   letter-spacing: 0.03em;
   color: var(--ink3);
   margin-bottom: 16px;
+  border-top: 1px solid #C7C7C7;
+  padding-top: 12px;
 }
 
 .oe-results-row {
@@ -294,67 +297,15 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
   color: var(--ink3);
   margin-top: 20px;
 }
-.oe-upgrade-cards {
-  display: flex;
-  gap: 40px;
-  margin-top: 32px;
-}
-
-.oe-upgrade-card {
-  width: 580px;
-  height: 400px;
-  border: 1px solid var(--border2);
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-.oe-upgrade-card.selected {
-  border: 2px solid var(--ink);
-}
-
-.oe-upgrade-card-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--ink3);
-  margin-bottom: 12px;
-}
-
-.oe-upgrade-card-price {
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 28px;
-  margin-bottom: 20px;
-}
-
-.oe-upgrade-card-desc {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--ink2);
-  flex: 1;
-}
-
-.oe-upgrade-footnote {
-  font-family: var(--serif);
-  font-style: italic;
+.oe-results-note {
   font-size: 13px;
-  color: var(--ink3);
-  margin-top: 24px;
+  margin: 32px 0 16px;
 }
-.oe-link-muted {
-  display: block;
-  margin-top: 20px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--ink3);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-transform: uppercase;
+.oe-muted {
+  color: #737373;
+  font-size: 13px;
+  margin: 48px 0 12px;
 }
-.oe-link-muted:hover { color: var(--ink); }
 .oe-dz.has-error {
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%23b5362a' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat ;
 }
