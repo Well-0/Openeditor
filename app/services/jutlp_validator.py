@@ -166,7 +166,7 @@ def _extra_subheadings(found_subs: list[str], required: list[str]) -> list[str]:
 
 
 def _extra_subheading_result(rule_id: str, section: str, extras: list[str],
-                             required: list[str]) -> dict:
+                        required: list[str]) -> dict:
     expected = ", ".join(required)
     listed = ", ".join(f"'{e}'" for e in extras)
     return _result(
