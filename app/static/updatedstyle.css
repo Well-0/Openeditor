@@ -1,0 +1,426 @@
+[x-cloak] { display: none !important; }
+.oapa-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+/* ─── Tokens ─────────────────────────────────── */
+:root {
+      --green:      #1a4a3a;
+      --green-mid:  #2d6b54;
+      --green-light:#e8f2ed;
+      --green-dim:  rgba(26,74,58,0.08);
+      --ink:        #1c1c1a;
+      --ink2:       #4a4a46;
+      --ink3:       #8a8a84;
+      --paper:      #faf9f6;
+      --paper2:     #f2f0eb;
+      --paper3:     #e8e5de;
+      --white:      #ffffff;
+      --border:     #dedad2;
+      --border2:    #c8c4bb;
+      --red:        #b5362a;
+      --red-dim:    #fdf0ee;
+      --serif:      'Instrument Serif', Georgia, serif;
+      --mono:       'IBM Plex Mono', 'Courier New', monospace;
+      --sans:       'IBM Plex Sans', system-ui, sans-serif;
+      --shadow:     0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-lg:  0 8px 40px rgba(0,0,0,0.10);
+
+      --oe-pending:#c7c7c7; 
+}
+
+/* ─── Reset ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+/* ─── Updated Body ──────────────────────────── */
+body{
+  background: #e9e9e4;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
+ 
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+ 
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/*OpenEditor frame and components*/
+
+/* Reproduces the Figma canvas at literal 1440x900 so spacing/positions
+   can be checked directly against the design file. */
+.oe-frame-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.oe-frame {
+  position: relative;
+  width: 1440px;
+  min-height: 900px;
+  margin: 0;
+  background: var(--white);
+  padding: 80px 120px 60px;
+  box-sizing: border-box;
+  transform: scale(var(--oe-scale, 1));
+  transform-origin: center center;
+}
+ 
+/* Progress indicator: y80, full content width, 4 segments */
+.oe-progress { display: flex; gap: 8px; margin-bottom: 56px; }
+.oe-progress-seg { flex: 1; height: 3px; background: var(--oe-pending); }
+.oe-progress-seg.done { background: var(--ink); }
+ 
+.oe-headline {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+}
+ 
+.oe-lede {
+  font-family: var(--serif);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink2);
+  max-width: 52ch;
+  margin: 0 0 40px;
+}
+ 
+/* ─── Upload dropzone ──────────────────────────── */
+.oe-dz {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 1200px;
+  height: 280px;
+  border-radius: 2px;
+  cursor: pointer;
+  /* svg background to get a dashed line with [6,5] and radius 2 */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%23C7C7C7' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat;
+}
+.oe-dz.has-file {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%231c1c1a' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat;
+}
+ 
+.oe-dz input[type=file] { display: none; }
+ 
+.oe-dz-main {
+  font-family: var(--serif);
+  font-size: 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.oe-dz-browse-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--ink);
+  padding: 10px 20px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.oe-dz-browse-btn:hover {
+  background: var(--ink);
+  color: var(--white);
+}
+.oe-dz-filename { font-family: var(--mono); font-size: 13px; }
+.oe-dz-remove {
+  margin-left: 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink3);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+ 
+.oe-dz-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink3);
+}
+ 
+.oe-submit-row { margin-top: 32px; text-align: right; width: 1200px; }
+.oe-submit-row.left { text-align: left; }
+ 
+/* OAPA signature block: fixed at (1100,726), 220x54 — uses the real
+   .oapa-logo class above, just positioned for this frame. */
+.oe-signature {
+  position: absolute;
+  left: 1100px;
+  top: 726px;
+  width: 220px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ─── Buttons ──────────────────────────────── */
+.oe-btn-primary {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--ink);
+  color: var(--white);
+  border: none;
+  padding: 12px 24px;
+  cursor: pointer;
+}
+.oe-btn-primary:disabled {
+  background: var(--paper2);
+  color: var(--ink3);
+  cursor: not-allowed;
+}
+.oe-btn-ghost {
+  font-family: var(--sans);
+  font-size: 14px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink3);
+  border-radius: 3px;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.oe-btn-ghost:hover { border-color: var(--ink3); color: var(--ink); }
+
+.oe-file-meta {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink2);
+  margin: 24px 0 40px;
+}
+
+.oe-check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid #C7C7C7;
+  font-family: var(--serif);
+  font-size: 16px;
+}
+.oe-check-row:last-child { border-bottom: none; }
+
+.oe-check-label { flex: 1; }
+
+.oe-check-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink3);
+}
+.oe-progress-track {
+  width: 1200px;
+  height: 3px;
+  background: var(--paper3);
+  position: relative;
+  margin: 40px 0 16px;
+}
+.oe-progress-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: var(--ink);
+  transition: width 0.1s linear;
+}
+.oe-results-columns {
+  display: flex;
+  gap: 80px;
+  margin-top: 32px;
+}
+.oe-results-col { flex: 1; }
+
+.oe-results-col-header {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink3);
+  margin-bottom: 16px;
+  border-top: 1px solid #C7C7C7;
+  padding-top: 12px;
+}
+
+.oe-results-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  font-family: var(--serif);
+  font-size: 16px;
+}
+.oe-results-row .oe-results-label { flex: 1; }
+.oe-results-row .oe-results-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink3);
+}
+
+.oe-results-col.muted .oe-results-row {
+  color: #737373;
+}
+.oe-results-col.muted .oe-results-marker {
+  color: #737373;
+}
+
+.oe-results-aside {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink3);
+  margin-top: 20px;
+}
+.oe-results-note {
+  font-size: 13px;
+  margin: 32px 0 16px;
+}
+.oe-muted {
+  color: #737373;
+  font-size: 13px;
+  margin: 48px 0 12px;
+}
+.oe-dz.has-error {
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='280'%3E%3Crect x='1' y='1' width='1198' height='278' rx='2' ry='2' fill='none' stroke='%23b5362a' stroke-width='1' stroke-dasharray='6,5'/%3E%3C/svg%3E") no-repeat ;
+}
+
+.oe-error-text {
+  font-family: var(--serif);
+  color: var(--red);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+
+.oe-while-you-wait {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.oe-carousel-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 400;
+  margin: 12px 0 6px;
+}
+
+.oe-carousel-author {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink3);
+  margin-bottom: 12px;
+}
+
+.oe-carousel-abstract {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink2);
+  max-width: 52ch;
+  margin-bottom: 16px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+
+.oe-carousel-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.oe-carousel-link {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.oe-carousel-next {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink3);
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.oe-carousel-next:hover {
+  border-color: var(--ink3);
+  color: var(--ink);
+}
+.oe-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.oe-modal {
+  background: var(--white);
+  border: 1px solid var(--ink);
+  padding: 40px;
+  width: 490px;
+  box-sizing: border-box;
+}
+
+.oe-modal .oe-headline {
+  font-size: 24px;
+  margin: 12px 0 16px;
+}
+
+.oe-modal .oe-lede {
+  margin-bottom: 32px;
+  max-width: none;
+}
+
+.oe-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.oe-modal-actions .oe-btn-primary,
+.oe-modal-actions .oe-btn-ghost {
+  flex: 1;
+}
+/* ─── Error bar (blocked / wrong file type) ────── */
+.oe-error-bar {
+  width: 1200px;
+  height: 4px;
+  background: var(--ink);
+  margin-bottom: 56px;
+}

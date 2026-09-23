@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenEditor</title>
+
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script type="module" src="{{ url_for('static', filename='openeditor.js') }}"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='updatedstyle.css') }}">
+</head>
+<body>
+
+<div x-data="openEditorApp()" x-init="init()">
+
+  <div class="oe-frame-wrapper">
+    <div class="oe-frame">
+      <div class="oe-signature">
+        <img src="{{ url_for('static', filename='oapa-logo.png') }}" class="oapa-logo" alt="OAPA">
+      </div>
+      <div class="oe-progress" x-show="currentPhase !== 'blocked'">
+        <template x-for="n in 4" :key="n">
+          <div class="oe-progress-seg" :class="{ done: n <= stepNumber() }"></div>
+        </template>
+      </div>
+ 
+      <!-- ========================  1.UPLOAD STAGE  ========================  -->
+      <div x-show="currentPhase === 'upload'" x-cloak>
+        <div class="oe-eyebrow">STEP 1 OF 4 &middot; UPLOAD</div>
+        <h2 class="oe-headline">Upload your manuscript</h2>
+        <p class="oe-lede">OpenEditor corrects your document against APA7 and checks every reference against Crossref. Your original file is deleted once you download the result.</p>
+
+        <label
+          for="file-input"
+          class="oe-dz"
+          :class="{ 'has-file': selectedFile || isDragOver, 'has-error': fileError }"
+          @dragover.prevent="isDragOver = true"
+          @dragleave.prevent="isDragOver = false"
+          @drop.prevent="isDragOver = false; onFileDropped($event)">
+  
+          <input x-ref="fileInput" id="file-input" type="file" accept=".docx" @change="onFileSelected($event)">
+  
+          <template x-if="!selectedFile">
+            <div class="oe-dz-main">
+              <p>Drag and drop your Word document here</p>
+              <button type="button" class="oe-dz-browse-btn" @click.prevent.stop="$refs.fileInput.click()">Browse Files</button>
+            </div>
+          </template>
+  
+          <template x-if="selectedFile">
+            <div class="oe-dz-main">
+              <span class="oe-dz-filename" x-text="`${selectedFile.name} · ${fileSizeLabel}`"></span>
+              <button type="button" class="oe-dz-remove" @click.prevent.stop="removeFile()">Remove</button>
+            </div>
+          </template>
+  
+          <div class="oe-dz-pill">.docx only &middot; 20 MB MAXIMUM &middot; 15,000 words MAXIMUM</div>
+        </label>
+        
+        <p class="oe-error-text" x-show="fileError" x-text="fileError"></p>
+        <div class="oe-submit-row">
+          <button class="oe-btn-primary" :disabled="!canSubmit" @click="startProcessing()">
+            Continue
+          </button>
+        </div>
+      </div>
+  
+
+      <!-- ========================  2.PROCESSING STAGE ========================  -->
+      <!--Processing-->
+      <div x-show="currentPhase === 'processing'" x-cloak>
+        <div class="oe-eyebrow">STEP 2 OF 4 &middot; PROCESSING</div>
+        <h2 class="oe-headline">Correcting your manuscript</h2>
+        <p class="oe-lede">Still working. Longer manuscripts take a few minutes.</p>
+        <div class="oe-progress-track">
+          <div class="oe-progress-fill" :style="`width: ${processingPercent}%`"></div>
+        </div>
+
+        <div class="oe-timer">ELAPSED <span x-text="elapsedFormatted"></span> &middot; STOPS AUTOMATICALLY AT 10:00</div>
+
+        <div class="oe-submit-row left">
+          <button class="oe-btn-ghost" @click="requestCancel()">Cancel</button>
+        </div>
+        <div class="oe-while-you-wait" x-show="carouselEnabled" x-cloak>
+          <div class="oe-eyebrow">WHILE YOU WAIT</div>
+          <h3 class="oe-carousel-title" x-text="currentArticle.title"></h3>
+          <p class="oe-carousel-author" x-text="currentArticle.author"></p>
+          <p class="oe-carousel-abstract" x-text="currentArticle.abstract"></p>
+          <div class="oe-carousel-actions">
+            <a class="oe-carousel-link" :href="currentArticle.url" target="_blank" rel="noopener">Read article</a>
+            <button class="oe-carousel-next" type="button" @click="nextJutlpArticle()">Next article</button>
+          </div> 
+        </div>
+        <!--Cancel processing guard-->
+        <div class="oe-modal-overlay" x-show="showCancelConfirm" x-cloak>
+          <div class="oe-modal">
+            <div class="oe-eyebrow">CANCEL PROCESSING</div>
+            <h2 class="oe-headline">Stop working on your manuscript?</h2>
+            <p class="oe-lede">Processing will stop and your upload will be deleted. You will need to upload your file again to start over.</p>
+            <div class="oe-modal-actions">
+              <button class="oe-btn-primary" @click="keepProcessing()">Keep Processing</button>
+              <button class="oe-btn-ghost" @click="confirmCancel()">Cancel and Start Over</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Cancelled -->
+      <div x-show="currentPhase === 'cancelled'" x-cloak>
+        <div class="oe-error-bar"></div>
+        <div class="oe-eyebrow">PROCESSING CANCELLED</div>
+        <h2 class="oe-headline">You cancelled this job</h2>
+        <p class="oe-lede">Your upload has been deleted. Nothing was saved. You can upload your file again whenever you are ready.</p>
+        <div class="oe-submit-row left">
+          <button class="oe-btn-primary" @click="resetToUpload()">Upload a File</button>
+        </div>
+      </div>
+
+      <!-- Timeout -->
+      <div x-show="currentPhase === 'timeout'" x-cloak>
+        <div class="oe-error-bar"></div>
+        <div class="oe-eyebrow">PROCESSING STOPPED</div>
+        <h2 class="oe-headline">This took longer than ten minutes</h2>
+        <p class="oe-lede">Unable to finish processing your manuscript. Please try again. Your upload has been deleted. Complex documents with many tables or embedded objects are the usual cause.</p>
+        <div class="oe-submit-row left">
+          <button class="oe-btn-primary" @click="retryProcessing()">Try Again</button>
+          <button class="oe-btn-ghost" @click="resetToUpload()" style="margin-left: 16px;">Upload a Different File</button>
+        </div>
+        <p class="oe-lede" style="margin-top: 32px; font-style: italic; color: var(--ink3);">If this keeps happening, contact OAPA and we will look at the document directly.</p>
+      </div>
+
+      <!-- ======================== 3.RESULTS ======================== -->
+      <div x-show="currentPhase === 'results'" x-cloak>
+        <div class="oe-eyebrow">STEP 3 OF 4 &middot; REVIEW</div>
+        <h2 class="oe-headline">"Your manuscript has been processed"></h2>
+        <p class="oe-lede">Some formatting issues were found and changes have been made.</p>
+
+        <div class="oe-results-columns">
+          <div class="oe-results-col">
+            <div class="oe-results-col-header">CHANGES MADE AUTOMATICALLY</div>
+            <template x-for="item in freeItems" :key="item.label">
+              <div class="oe-results-row">
+                <span class="oe-results-marker">■</span>
+                <span class="oe-results-label" x-text="item.label"></span>
+                <span class="oe-results-status" x-text="item.status"></span>
+              </div>
+            </template>
+            <p class="oe-results-note">Review the changes in your downloaded document.</p>
+            <button class="oe-btn-ghost" @click="goToDownload()">Continue to download</button>
+          </div>
+
+          <div class="oe-results-col muted">
+            <div class="oe-results-col-header">THINGS TO REVIEW</div>
+              <template x-for="item in reviewItems" :key="item.label">
+                <div class="oe-results-row">
+                  <span class="oe-results-marker">□</span>
+                  <span class="oe-results-label" x-text="item.label"></span>
+                  <span class="oe-results-status">REVIEW"></span>
+                </div>
+              </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================== 4.DOWNLOAD ======================== -->
+      <div x-show="currentPhase === 'download'" x-cloak>
+        <div class="oe-eyebrow">STEP 4 OF 4 &middot; DOWNLOAD</div>
+        <h2 class="oe-headline">Your document is ready</h2>
+        <div class="oe-file-meta" x-text="downloadFileLabel"></div>
+
+        <p class="oe-lede">Your processed manuscript is ready to download. Your processed file is temporary and will not be saved as document history.</p>
+
+        <div class="oe-submit-row left">
+          <button class="oe-btn-primary" @click="downloadManuscript()">Download processed document</button>
+        </div>
+        <p class="oe-muted">Want to process another document?</p>
+
+        <!--Process another document guard-->
+        <button class="oe-btn-ghost" @click="requestProcessAnother()">Process another document</button>
+        <div class="oe-modal-overlay" x-show="showLeaveConfirm" x-cloak>
+          <div class="oe-modal">
+            <div class="oe-eyebrow">DOWNLOAD WARNING</div>
+            <h2 class="oe-headline">Have you downloaded your document?</h2>
+            <p class="oe-lede">Your processed file will not be saved when you leave this page.</p>
+            <div class="oe-modal-actions">
+              <button class="oe-btn-primary" @click="downloadFirst()">Download first</button>
+              <button class="oe-btn-ghost" @click="continueWithoutDownloading()">Continue without downloading</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+ 
+<script>
+  function updateFrameScale() {
+    const scaleX = window.innerWidth / 1440;
+    const scaleY = window.innerHeight / 900;
+    const scale = Math.min(scaleX, scaleY, 1); // never scale up, only down
+    document.documentElement.style.setProperty('--oe-scale', scale);
+  }
+  window.addEventListener('resize', updateFrameScale);
+  updateFrameScale();
+</script>
+
+</body>
+</html>
+
