@@ -9,7 +9,6 @@ import time
 import uuid
 from datetime import timedelta
 from urllib.parse import urljoin, urlparse
-from app.services.access_validation import check_access, AccessStatus
 
 from flasgger import Swagger
 from flask import (
@@ -28,6 +27,7 @@ from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.pipelines.feedback_gen_pipeline import doc_analysis_pipeline
+from app.services.access_validation import check_access
 from app.services.acronym_store import (
     add_acronym,
     load_acronyms,
@@ -463,7 +463,7 @@ def openeditor():
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok"}), 200    
+    return jsonify({"status": "ok"}), 200
 
 
 @app.get("/api/jutlp-articles")
