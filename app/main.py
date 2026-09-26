@@ -9,6 +9,7 @@ import time
 import uuid
 from datetime import timedelta
 from urllib.parse import urljoin, urlparse
+from app.services.access_validation import check_access, AccessStatus
 
 from flasgger import Swagger
 from flask import (
@@ -123,6 +124,7 @@ _PUBLIC_PATH_PREFIXES = (
     "/flasgger_static",
     "/static",
     "/openeditor",
+    "/health",
 )
 
 
@@ -135,18 +137,36 @@ def _is_safe_redirect(target: str) -> bool:
     return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 
+_API_PATH_PREFIXES = ("/api/",)
+
+
 @app.before_request
-def _require_login():
-    if not APP_PASSWORD:
-        # Auth disabled when no password is configured (local dev convenience).
-        return
+def _require_access():
     path = request.path
+
+    # Public paths — no access check needed.
     for prefix in _PUBLIC_PATH_PREFIXES:
         if path == prefix or path.startswith(prefix + "/") or path == prefix + "/":
             return
-    if session.get("authed"):
+
+    # Already-verified this session.
+    if session.get("access_method"):
         return
-    return redirect(url_for("login_form", next=request.full_path))
+
+    result = check_access({"path": path})
+
+    if result.is_valid:
+        session["access_method"] = result.access_method
+        return
+
+    # Denied — APIs get JSON, browser pages get a redirect/403 page.
+    is_api = any(path.startswith(p) for p in _API_PATH_PREFIXES)
+    if is_api:
+        return jsonify({"error": "Access denied", "reason": result.reason}), 403
+
+    return jsonify({"error": "Access denied", "reason": result.reason}), 403
+    # NOTE: once an access-denied HTML template exists (H-07's job), swap
+    # the line above for: return render_template("access_denied.html"), 403
 
 
 @app.get("/login")
@@ -439,6 +459,11 @@ def _dedup_sam_issues(sam_issues: list[dict], existing_issues: list[dict]) -> li
 @app.get("/")
 def openeditor():
     return render_template("writer.html")
+
+
+@app.get("/health")
+def health():
+    return jsonify({"status": "ok"}), 200    
 
 
 @app.get("/api/jutlp-articles")
