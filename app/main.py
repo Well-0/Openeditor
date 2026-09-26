@@ -2,6 +2,7 @@ import hmac
 import os
 import re
 import secrets
+import shutil
 import tempfile
 import threading
 import time
@@ -26,6 +27,7 @@ from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.pipelines.feedback_gen_pipeline import doc_analysis_pipeline
+from app.services.access_validation import check_access
 from app.services.acronym_store import (
     add_acronym,
     load_acronyms,
@@ -122,6 +124,7 @@ _PUBLIC_PATH_PREFIXES = (
     "/flasgger_static",
     "/static",
     "/openeditor",
+    "/health",
 )
 
 
@@ -134,18 +137,36 @@ def _is_safe_redirect(target: str) -> bool:
     return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 
+_API_PATH_PREFIXES = ("/api/",)
+
+
 @app.before_request
-def _require_login():
-    if not APP_PASSWORD:
-        # Auth disabled when no password is configured (local dev convenience).
-        return
+def _require_access():
     path = request.path
+
+    # Public paths — no access check needed.
     for prefix in _PUBLIC_PATH_PREFIXES:
         if path == prefix or path.startswith(prefix + "/") or path == prefix + "/":
             return
-    if session.get("authed"):
+
+    # Already-verified this session.
+    if session.get("access_method"):
         return
-    return redirect(url_for("login_form", next=request.full_path))
+
+    result = check_access({"path": path})
+
+    if result.is_valid:
+        session["access_method"] = result.access_method
+        return
+
+    # Denied — APIs get JSON, browser pages get a redirect/403 page.
+    is_api = any(path.startswith(p) for p in _API_PATH_PREFIXES)
+    if is_api:
+        return jsonify({"error": "Access denied", "reason": result.reason}), 403
+
+    return jsonify({"error": "Access denied", "reason": result.reason}), 403
+    # NOTE: once an access-denied HTML template exists (H-07's job), swap
+    # the line above for: return render_template("access_denied.html"), 403
 
 
 @app.get("/login")
@@ -440,6 +461,11 @@ def openeditor():
     return render_template("writer.html")
 
 
+@app.get("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
 @app.get("/api/jutlp-articles")
 @limiter.limit("30 per hour")
 def jutlp_articles_api():
@@ -603,11 +629,11 @@ def upload():
         description: Bad request (no file or wrong format).
     """
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"error_code": "EMPTY", "message": "No file uploaded", "session_id": None}), 400
 
     file = request.files["file"]
     if not file.filename or not file.filename.endswith(".docx"):
-        return jsonify({"error": "Only .docx files are accepted"}), 400
+        return jsonify({"error_code": "BAD_TYPE", "message": "Only .docx files are accepted", "session_id": None}), 400
 
     tmp_dir = tempfile.mkdtemp()
     input_path = os.path.join(tmp_dir, file.filename)
@@ -622,14 +648,12 @@ def upload():
         total_words = None
     if total_words is not None and total_words > _max_word_count:
         return jsonify({
-            "error": (
-                f"Document is too long ({total_words:,} words). The maximum is "
-                f"{_max_word_count:,} words. Please shorten the manuscript and "
-                "try again."
-            ),
-            "word_count": total_words,
-            "max_word_count": _max_word_count,
-        }), 400
+            "error_code": "OVER_WORD_LIMIT",
+                "message": f"Document is too long ({total_words:,} words). The maximum is {_max_word_count:,} words.",
+                "session_id": None,
+                "word_count": total_words,
+                "max_word_count": _max_word_count,
+            }), 400
 
     output_filename = build_output_filename(input_path, tmp_dir)
     output_path = os.path.join(tmp_dir, output_filename)
@@ -642,6 +666,7 @@ def upload():
         "filename": file.filename,
         "output_filename": output_filename,
         "cancel_requested": False,
+        "tmp_dir": tmp_dir,
     }
 
     def _run():
@@ -760,6 +785,11 @@ def cancel_analysis(session_id):
             "stage": "cancelled",
             "cancel_requested": True,
         })
+        # Clean up any temp files immediately rather than waiting for the
+        # pipeline to notice cancel_requested at its next checkpoint.
+        tmp_dir = session.get("tmp_dir")
+        if tmp_dir and os.path.isdir(tmp_dir):
+            shutil.rmtree(tmp_dir, ignore_errors=True)
         return jsonify({"status": "cancelled"})
 
     return jsonify({"status": session.get("status", "unknown")})

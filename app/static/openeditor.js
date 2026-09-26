@@ -1,34 +1,30 @@
 import { uploadManuscript, pollUntilDone, cancelJob, fetchCarouselArticles, downloadUrl, CAROUSEL_ENABLED } from './api.js';
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('openEditorApp', () => ({
-    // ─── UPLOAD state ───
     currentPhase: 'upload',
     selectedFile: null,
     isDragOver: false,
     fileError: null,
+    sessionId: null,
+    uploadError: null,
 
-    // ─── PROCESSING state (checking is a sub-state — see TODO) ───
-    checkRows: [
-      { label: 'File type', done: false, status: 'PENDING' },
-      { label: 'File size', done: false, status: 'PENDING' },
-      { label: 'Word count', done: false, status: 'WAITING' },
-      { label: 'Document readable', done: false, status: 'WAITING' }
-    ],
     processingPercent: 0,
     elapsedSeconds: 0,
-    processingTimer: null,
     elapsedTimer: null,
+    pollHandle: null,
     carouselEnabled: CAROUSEL_ENABLED,
     jutlpArticles: [{
-    title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
-    author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
-    abstract: 'This JUTLP article introduces the AI Assessment Scale as a practical framework for deciding when and how generative AI can be used in educational assessment.',
-    url: 'https://open-publishing.org/journals/index.php/jutlp/article/view/810/769'
+      title: 'The Artificial Intelligence Assessment Scale (AIAS): A Framework for Ethical Integration of Generative AI in Educational Assessment',
+      author: 'Mike Perkins, Leon Furze, Jasper Roe, Jason MacVaugh',
+      abstract: 'This JUTLP article introduces the AI Assessment Scale as a practical framework for deciding when and how generative AI can be used in educational assessment.',
+      url: 'https://open-publishing.org/journals/index.php/jutlp/article/view/810/769'
     }],
     jutlpArticleIndex: 0,
     jutlpRotateTimer: null,
     showCancelConfirm: false,
     showLeaveConfirm: false,
+
     // ─── RESULTS state ───
     totalCorrections: 34,
     freeItems: [
@@ -43,11 +39,12 @@ document.addEventListener('alpine:init', () => {
       { label: '1 table caption format unclear' }
     ],
     hasDownloaded: false,
+    resultsPayload: null,
 
     get fileSizeLabel() {
-        if (!this.selectedFile) return '';
-        const mb = this.selectedFile.size / (1024 * 1024);
-        return mb.toFixed(1) + ' MB';
+      if (!this.selectedFile) return '';
+      const mb = this.selectedFile.size / (1024 * 1024);
+      return mb.toFixed(1) + ' MB';
     },
 
     init() {
@@ -64,23 +61,22 @@ document.addEventListener('alpine:init', () => {
 
     async onFileDropped(event) {
       const file = event.dataTransfer.files[0];
-      this.applyFile(file);
+      await this.applyFile(file);
       const input = document.getElementById('file-input');
       if (input && this.selectedFile) input.files = event.dataTransfer.files;
     },
 
     async applyFile(file) {
       if (!file) return;
-        this.selectedFile = null;
-        this.fileError = null;
-      
-      // Called whenever a file is rejected. Shows the error message and clears the hidden input so the rejected file isn't left sitting in it.
+      this.selectedFile = null;
+      this.fileError = null;
+
       const fail = (message) => {
-        this.fileError = message;   // triggers the red error text and dropzone border
+        this.fileError = message;
         const input = document.getElementById('file-input');
-        // Empty the input so picking the same file again still fires a change event
         if (input) input.value = '';
       };
+
       if (!file.name.toLowerCase().endsWith('.docx')) {
         return fail('This file type is not supported. Please upload a Microsoft Word document (.docx).');
       }
@@ -98,12 +94,14 @@ document.addEventListener('alpine:init', () => {
 
       this.selectedFile = file;
     },
+
     async checkReadable(file) {
       const b = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-      if (b[0] === 0x50 && b[1] === 0x4B) return 'ok';                                   // "PK": a real .docx (zip)
-      if (b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0) return 'locked'; // encrypted Word file
+      if (b[0] === 0x50 && b[1] === 0x4B) return 'ok';
+      if (b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0) return 'locked';
       return 'corrupt';
     },
+
     removeFile() {
       this.selectedFile = null;
       const input = document.getElementById('file-input');
@@ -122,54 +120,80 @@ document.addEventListener('alpine:init', () => {
 
     stepNumber() {
       if (this.currentPhase === 'upload') return 1;
-      if (this.currentPhase === 'processing'|| this.currentPhase === 'cancelled'||this.currentPhase === 'timeout') return 2;
+      if (this.currentPhase === 'processing' || this.currentPhase === 'cancelled' || this.currentPhase === 'timeout') return 2;
       if (this.currentPhase === 'results' || this.currentPhase === 'upgrade') return 3;
       return 4;
     },
 
-    startProcessing() {   
+    // ─── REAL upload + processing ───
+    async startProcessing() {
+      if (!this.canSubmit) return;
       this.currentPhase = 'processing';
       this.processingPercent = 0;
       this.elapsedSeconds = 0;
-
-      const totalDurationMs = 5000;
-      const timeoutSeconds = 600;
-      const stepMs = 100;
-      let elapsedMs = 0;
-
-      this.processingTimer = setInterval(() => {
-        elapsedMs += stepMs;
-        this.processingPercent = Math.min(100, (elapsedMs / totalDurationMs) * 100);
-        if (elapsedMs >= totalDurationMs) {
-          clearInterval(this.processingTimer);
-          clearInterval(this.elapsedTimer);
-          this.stopJutlpRotation();
-          this.currentPhase = 'results';
-        }
-      }, stepMs);
-      //fetch articles in background without blocking any timers
+      this.uploadError = null;
 
       this.elapsedTimer = setInterval(() => {
-          this.elapsedSeconds++;
-          if (this.elapsedSeconds >= timeoutSeconds) {
-            clearInterval(this.processingTimer);
-            clearInterval(this.elapsedTimer);
-            this.stopJutlpRotation();
-            this.currentPhase = 'timeout';
-          }
+        this.elapsedSeconds++;
       }, 1000);
 
       this.fetchJutlpArticles().then(() => this.startJutlpRotation());
+
+      try {
+        const { session_id } = await uploadManuscript(this.selectedFile);
+        this.sessionId = session_id;
+      } catch (err) {
+        clearInterval(this.elapsedTimer);
+        this.stopJutlpRotation();
+        this.uploadError = err.message || 'Upload failed. Please try again.';
+        this.fileError = this.uploadError;
+        this.currentPhase = 'upload';
+        return;
+      }
+
+      this.pollHandle = pollUntilDone(
+        this.sessionId,
+        (payload) => {
+          this.processingPercent = payload.progress ?? this.processingPercent;
+        }
+      );
+
+      this.pollHandle.promise
+        .then((resultsPayload) => {
+          clearInterval(this.elapsedTimer);
+          this.stopJutlpRotation();
+          this.resultsPayload = resultsPayload;
+          this.currentPhase = 'results';
+        })
+        .catch((err) => {
+          clearInterval(this.elapsedTimer);
+          this.stopJutlpRotation();
+          if (err.errorCode === 'CANCELLED') {
+            this.currentPhase = 'cancelled';
+          } else if (err.errorCode === 'TIMEOUT') {
+            this.currentPhase = 'timeout';
+          } else {
+            console.error('Processing failed:', err);
+            this.currentPhase = 'timeout';
+          }
+        });
     },
 
     requestCancel() {
       this.showCancelConfirm = true;
     },
 
-    confirmCancel() {
+    async confirmCancel() {
       this.showCancelConfirm = false;
-      clearInterval(this.processingTimer);
-      clearInterval(this.elapsedTimer);
+      if (this.pollHandle) this.pollHandle.cancel();
+      if (this.sessionId) {
+        try {
+          await cancelJob(this.sessionId);
+        } catch (err) {
+          console.warn('Cancel request failed:', err);
+        }
+      }
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
       this.stopJutlpRotation();
       this.selectedFile = null;
       const input = document.getElementById('file-input');
@@ -178,35 +202,38 @@ document.addEventListener('alpine:init', () => {
     },
 
     keepProcessing() {
-        this.showCancelConfirm = false;
+      this.showCancelConfirm = false;
     },
 
     resetToUpload() {
-        clearInterval(this.processingTimer);
-        clearInterval(this.elapsedTimer);
-        this.selectedFile = null;
-        this.hasDownloaded = false;
-        this.currentPhase = 'upload';
-        const input = document.getElementById('file-input');
-        if (input) input.value = '';
+      if (this.pollHandle) this.pollHandle.cancel();
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
+      this.selectedFile = null;
+      this.hasDownloaded = false;
+      this.sessionId = null;
+      this.currentPhase = 'upload';
+      const input = document.getElementById('file-input');
+      if (input) input.value = '';
     },
+
     goToUpgrade() {
-        this.currentPhase = 'upgrade';
+      this.currentPhase = 'upgrade';
     },
     goToDownload() {
-        this.currentPhase = 'download';
+      this.currentPhase = 'download';
     },
 
     downloadManuscript() {
-    // No real file  — just marks as downloaded.
-    this.hasDownloaded = true;
+      if (this.sessionId) {
+        window.location.href = downloadUrl(this.sessionId);
+      }
+      this.hasDownloaded = true;
     },
 
     get currentArticle() {
-        return this.jutlpArticles[this.jutlpArticleIndex];
+      return this.jutlpArticles[this.jutlpArticleIndex];
     },
 
-    //===========================Carousel functions===========================
     async fetchJutlpArticles() {
       const articles = await fetchCarouselArticles();
       if (articles.length) {
@@ -216,29 +243,30 @@ document.addEventListener('alpine:init', () => {
     },
 
     nextJutlpArticle() {
-        if (this.jutlpArticles.length <= 1) return;
-        let nextIndex = Math.floor(Math.random() * this.jutlpArticles.length);
-        if (nextIndex === this.jutlpArticleIndex) {
-            nextIndex = (nextIndex + 1) % this.jutlpArticles.length;
-        }
-        this.jutlpArticleIndex = nextIndex;
+      if (this.jutlpArticles.length <= 1) return;
+      let nextIndex = Math.floor(Math.random() * this.jutlpArticles.length);
+      if (nextIndex === this.jutlpArticleIndex) {
+        nextIndex = (nextIndex + 1) % this.jutlpArticles.length;
+      }
+      this.jutlpArticleIndex = nextIndex;
     },
 
     startJutlpRotation() {
-        this.stopJutlpRotation();
-        if (this.jutlpArticles.length > 1) {
-            this.jutlpRotateTimer = setInterval(() => this.nextJutlpArticle(), 150000);
-        }
+      this.stopJutlpRotation();
+      if (this.jutlpArticles.length > 1) {
+        this.jutlpRotateTimer = setInterval(() => this.nextJutlpArticle(), 150000);
+      }
     },
 
     stopJutlpRotation() {
-        if (this.jutlpRotateTimer) {
-            clearInterval(this.jutlpRotateTimer);
-            this.jutlpRotateTimer = null;
-        }
+      if (this.jutlpRotateTimer) {
+        clearInterval(this.jutlpRotateTimer);
+        this.jutlpRotateTimer = null;
+      }
     },
+
     retryProcessing() {
-        this.startProcessing();
+      this.resetToUpload();
     },
 
     requestProcessAnother() {
